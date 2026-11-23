@@ -82,4 +82,8 @@ All paths are relative, so it works under a `/<repo>/` subpath without changes.
 
 On touch/coarse-pointer devices, hold **REV**, **STOP**, the steering arrows, and **Nitro** to drive. A compact toolbar provides **Pause**, **Restart**, **Checkpoint Reset (+3s)**, **Air Horn**, and **Camera** controls. The HUD adapts to portrait/landscape layouts and hides the desktop keyboard legend. Held controls are released when pausing, restarting, leaving a race, or losing focus.
 
+## Rigs
+
+Pick a rig on the main menu. The **Box Van** is the classic single trailer. The **Road Train**, a B-double with two pivots and 16 m of trailer, unlocks once you've earned a medal on 3 courses. In Rookie the hitch-assist steers the *rear* trailer. In Pro either hitch can jackknife, and the hitch gauge shows whichever is worse. Road-train runs have their own records and ghosts, and their medal times are 15% longer.
+
 Best times and ghost runs are saved in `localStorage`.

@@ -6,7 +6,8 @@
 - `src/main.js` contains the game. Its main sections are `LEVELS` / `TOD`, `SFX`, renderer and shared textures, rig model, track/level construction, game state, physics, update/render loop, HUD/input, and menu.
 - `LEVELS` are turtle-style course definitions. `buildTrack` turns them into track points and checkpoints; `buildLevel` creates the active scene; `S` holds current run state.
 - Driving is reverse-only: negative `S.v` moves the tractor forward along its heading. Keep collision, steering, trailer articulation, scoring, and checkpoint behavior consistent with this convention.
-- Ghost poses contain four values per sample (`x`, `z`, tractor heading, trailer heading) at 50 ms intervals. Checkpoint-reset sample indices are saved as `ghostResets` so playback can snap over resets; preserve compatibility with older records that lack markers.
+- `RIGS` defines the trailer sets; `RS` is the active one (`S.rig`). Use `bodies()` / `rearOf()` / `hitchAngle()` rather than assuming a single trailer at `S.ph`. Road-train state adds `S.ph2` (rear-trailer heading).
+- Ghost poses contain four values per sample (`x`, `z`, tractor heading, trailer heading) at 50 ms intervals; road-train records append the rear-trailer heading and store `stride:5`. Checkpoint-reset sample indices are saved as `ghostResets` so playback can snap over resets; preserve compatibility with older records that lack markers.
 
 ## Editing and resource ownership
 

@@ -18,6 +18,13 @@ const TR_BACK = 11.0, TR_FRONT = 1.0, TR_W = 2.6;
 const TC_BACK = 1.8, TC_FRONT = 6.6, TC_W = 2.5;
 const MAXSTEER = 0.6;
 const JACK = 1.22;
+// Trailer sets. parts: [front, back] per trailer from its hitch; D: hitch -> axle; L: lead hitch -> B-double fifth wheel.
+// Rookie road-train assist (gs, gmax, k2) was tuned offline to keep both hitch angles below ~0.6 rad.
+const RIGS = {
+  box:{ name:'BOX VAN', D:[DH], L:0, len:TR_BACK, parts:[[TR_FRONT,TR_BACK]] },
+  btrain:{ name:'ROAD TRAIN', D:[6.2,6.6], L:7, len:16.2, parts:[[TR_FRONT,5.2],[.3,9.2]], unlock:3, medalK:1.15, gs:.5, gmax:.5, k2:.12 },
+};
+let RS = RIGS.box;
 
 // ================= LEVELS =================
 function slalom(a,b,n,amp,phase=1){ const out=[]; for(let i=0;i<n;i++){ out.push([a+(b-a)*i/(n-1), (i%2?1:-1)*amp*phase]); } return out; }
@@ -201,15 +208,15 @@ const mats = {
   rev: new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffffff, emissiveIntensity:0.2 }),
   amber: new THREE.MeshStandardMaterial({ color:0xffa000, emissive:0xff8f00, emissiveIntensity:.8 }),
 };
-function sideTex(arrowLeft){ return canvasTex(1024,290,(g,w,h)=>{
+function sideTex(arrowLeft, title='BACKWARDS', sub='FREIGHT CO.  ·  ALWAYS ARRIVING… EVENTUALLY', W=1024){ return canvasTex(W,290,(g,w,h)=>{
   g.fillStyle='#f7f5ef'; g.fillRect(0,0,w,h);
   g.fillStyle='#ff6f00'; g.fillRect(0,h-46,w,26); g.fillStyle='#263238'; g.fillRect(0,h-20,w,20);
   g.fillStyle='#ff6f00'; g.fillRect(0,14,w,10);
   g.save(); g.font='900 96px Bungee, Rubik, sans-serif'; g.textBaseline='middle'; g.textAlign='center';
-  g.fillStyle='#263238'; g.fillText('BACKWARDS',w/2,104);
-  g.font='800 40px Rubik, sans-serif'; g.fillStyle='#ff6f00'; g.fillText('FREIGHT CO.  ·  ALWAYS ARRIVING… EVENTUALLY',w/2,182);
+  g.fillStyle='#263238'; const fit=(t,y,m)=>W<1024?g.fillText(t,w/2,y,w-m):g.fillText(t,w/2,y); fit(title,104,arrowLeft==null?60:280);
+  g.font='800 40px Rubik, sans-serif'; g.fillStyle='#ff6f00'; fit(sub,182,40);
   g.font='900 70px Rubik, sans-serif'; g.fillStyle='#ff6f00';
-  const arr = arrowLeft?'◀◀':'▶▶'; g.fillText(arr, arrowLeft?90:w-90, 104);
+  if(arrowLeft!=null){ const arr = arrowLeft?'◀◀':'▶▶'; g.fillText(arr, arrowLeft?90:w-90, 104); }
   g.restore();
   g.strokeStyle='#0001'; g.lineWidth=2; for(let x=0;x<w;x+=64){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); }
 }); }
@@ -223,8 +230,11 @@ const rearTex = canvasTex(260,340,(g,w,h)=>{
   g.fillStyle='#263238'; g.font='700 14px Rubik, sans-serif';
   g.fillText('IF YOU CAN READ THIS,',w/2,206); g.fillText("YOU'RE MY DESTINATION.",w/2,226);
 });
-const trailerMats = [ mats.white, new THREE.MeshStandardMaterial({map:rearTex,roughness:.6}), mats.white, mats.dark,
-  new THREE.MeshStandardMaterial({map:sideTex(true),roughness:.55}), new THREE.MeshStandardMaterial({map:sideTex(false),roughness:.55}) ];
+const sideMat = t => new THREE.MeshStandardMaterial({map:t,roughness:.55}), rearMat = new THREE.MeshStandardMaterial({map:rearTex,roughness:.6});
+const trailerMats = [ mats.white, rearMat, mats.white, mats.dark, sideMat(sideTex(true)), sideMat(sideTex(false)) ];
+// Road-train boxes get textures sized to their lengths so the lettering keeps its proportions.
+const leadMats = [ mats.white, mats.white, mats.white, mats.dark, ...[0,1].map(()=>sideMat(sideTex(null,'DOUBLE','BACKWARDS FREIGHT CO.',530))) ];
+const rearMats = [ mats.white, rearMat, mats.white, mats.dark, sideMat(sideTex(true,'TROUBLE','ROAD TRAIN · LONG LOAD',810)), sideMat(sideTex(false,'TROUBLE','ROAD TRAIN · LONG LOAD',810)) ];
 
 function buildRig(ghost){
   const gm = ghost ? new THREE.MeshBasicMaterial({ color:0x66e8ff, transparent:true, opacity:.22, depthWrite:false }) : null;
@@ -254,28 +264,51 @@ function buildRig(ghost){
     const bar=new THREE.Mesh(new THREE.BoxGeometry(r*1.3,.1,wd+.06),pk(mats.dark)); sp.add(bar);
     if(steer) steerPivots.push(piv); spinners.push({sp,r}); };
   for(const z of [-1.08,1.08]){ wheel(tractor,4.2,z,.56,.42,true); wheel(tractor,.65,z,.56,.62); wheel(tractor,-.7,z,.56,.62); }
-  // trailer (origin at hitch, extends -X)
-  B(trailer,TR_FRONT+TR_BACK,3.4,TR_W,ghost?gm:trailerMats,(TR_FRONT-TR_BACK)/2,2.75,0);
-  B(trailer,10.5,.32,1.1,mats.dark,-5.2,.95,0);
-  for(const z of [-.9,.9]) B(trailer,.12,.9,.12,mats.dark,-1.2,.55,z);
+  // trailers (origin at hitch, extend -X): the box van, or the road train's lead and rear trailers
   const tspin=[];
-  for(const z of [-1.05,1.05]) for(const x of [-8,-9.35]){ const piv=new THREE.Group(); piv.position.set(x,.56,z); trailer.add(piv); const sp=new THREE.Group(); piv.add(sp);
-    const tg=new THREE.CylinderGeometry(.56,.56,.62,18); tg.rotateX(Math.PI/2); const t=new THREE.Mesh(tg,pk(mats.tire)); if(!ghost) t.castShadow=true; sp.add(t);
-    const hg=new THREE.CylinderGeometry(.3,.3,.66,8); hg.rotateX(Math.PI/2); sp.add(new THREE.Mesh(hg,pk(mats.chrome))); sp.add(new THREE.Mesh(new THREE.BoxGeometry(.75,.1,.68),pk(mats.dark))); tspin.push({sp,r:.56}); }
-  for(const z of [-1.05,1.05]){ B(trailer,.06,.34,.3,mats.tail,-TR_BACK-.03,1.35,z); B(trailer,.06,.6,.5,mats.dark,-10.4,.55,z); }
-  const revs=[]; for(const z of [-.55,.55]) revs.push(B(trailer,.06,.22,.3,mats.rev,-TR_BACK-.03,1.35,z));
-  B(trailer,.3,.25,TR_W,mats.dark,-TR_BACK+.1,.85,0);
-  // reverse spotlight (night)
+  const body = (grp,front,back,wx,ms,tail) => {
+    B(grp,front+back,3.4,TR_W,ghost?gm:ms,(front-back)/2,2.75,0);
+    B(grp,back-.5,.32,1.1,mats.dark,.05-(back-.5)/2,.95,0);
+    for(const z of [-.9,.9]) B(grp,.12,.9,.12,mats.dark,-1.2,.55,z);
+    for(const z of [-1.05,1.05]) for(const x of wx){ const piv=new THREE.Group(); piv.position.set(x,.56,z); grp.add(piv); const sp=new THREE.Group(); piv.add(sp);
+      const tg=new THREE.CylinderGeometry(.56,.56,.62,18); tg.rotateX(Math.PI/2); const t=new THREE.Mesh(tg,pk(mats.tire)); if(!ghost) t.castShadow=true; sp.add(t);
+      const hg=new THREE.CylinderGeometry(.3,.3,.66,8); hg.rotateX(Math.PI/2); sp.add(new THREE.Mesh(hg,pk(mats.chrome))); sp.add(new THREE.Mesh(new THREE.BoxGeometry(.75,.1,.68),pk(mats.dark))); tspin.push({sp,r:.56}); }
+    for(const z of [-1.05,1.05]) B(grp,.06,.6,.5,mats.dark,wx[1]-1.05,.55,z);
+    if(!tail) return;
+    for(const z of [-1.05,1.05]) B(grp,.06,.34,.3,mats.tail,-back-.03,1.35,z);
+    for(const z of [-.55,.55]) B(grp,.06,.22,.3,mats.rev,-back-.03,1.35,z);
+    B(grp,.3,.25,TR_W,mats.dark,-back+.1,.85,0);
+  };
+  body(trailer,TR_FRONT,TR_BACK,[-8,-9.35],trailerMats,true);
+  const lead = new THREE.Group(), rear = new THREE.Group(), [[f1,b1],[f2,b2]] = RIGS.btrain.parts, L = RIGS.btrain.L;
+  body(lead,f1,b1,[-5.6,-6.8],leadMats,false);
+  B(lead,L-b1+.45,.2,1.4,mats.dark,-(b1+L+.45)/2,.9,0); // deck carrying the B-double fifth wheel
+  C(lead,.7,.12,mats.dark,-L,1.02,0);
+  body(rear,f2,b2,[-6,-7.2],rearMats,true);
+  // reverse spotlight (night); moved onto the last trailer by applyRig
   let spot=null;
-  if(!ghost){ spot=new THREE.SpotLight(0xfff4e0, 0, 70, .62, .5, 1.2); spot.position.set(-TR_BACK-.2,2.2,0); const tgt=new THREE.Object3D(); tgt.position.set(-35,0,0); trailer.add(tgt); spot.target=tgt; trailer.add(spot); }
-  return { tractor, trailer, steerPivots, spinners:[...spinners, ...tspin], spot, cab };
+  if(!ghost){ spot=new THREE.SpotLight(0xfff4e0, 0, 70, .62, .5, 1.2); spot.position.set(-TR_BACK-.2,2.2,0); spot.target=new THREE.Object3D(); spot.target.position.set(-35,0,0); trailer.add(spot.target, spot); }
+  return { tractor, trailer, lead, rear, steerPivots, spinners:[...spinners, ...tspin], spot, cab };
 }
 
 const rig = buildRig(false);
-scene.add(rig.tractor, rig.trailer);
+scene.add(rig.tractor, rig.trailer, rig.lead, rig.rear);
 const ghostRig = buildRig(true);
-scene.add(ghostRig.tractor, ghostRig.trailer);
-ghostRig.tractor.visible = ghostRig.trailer.visible = false;
+scene.add(ghostRig.tractor, ghostRig.trailer, ghostRig.lead, ghostRig.rear);
+function showRig(r, on){ const bt=RS.L>0; r.tractor.visible=on; r.trailer.visible=on&&!bt; r.lead.visible=r.rear.visible=on&&bt; }
+function showGhost(on){ showRig(ghostRig, on); }
+function applyRig(){
+  if(!RIGS[S.rig] || !rigUnlocked(S.rig)) S.rig='box';
+  RS=RIGS[S.rig]; showRig(rig, true); showGhost(ghostRig.tractor.visible);
+  const tail=RS.L?rig.rear:rig.trailer; rig.spot.position.x=-RS.parts[RS.parts.length-1][1]-.2; tail.add(rig.spot.target, rig.spot);
+}
+function poseRig(r, x, z, th, ph, ph2, y=0){
+  r.tractor.position.set(x,y,z); r.tractor.rotation.y=-th;
+  r.trailer.position.set(x,y,z); r.trailer.rotation.y=-ph;
+  r.lead.position.set(x,y,z); r.lead.rotation.y=-ph;
+  r.rear.position.set(x-Math.cos(ph)*RIGS.btrain.L,y,z-Math.sin(ph)*RIGS.btrain.L); r.rear.rotation.y=-ph2;
+}
+showGhost(false);
 
 // ================= PARTICLES =================
 const parts = [];
@@ -441,14 +474,14 @@ function buildLevel(li){
     const a1=new THREE.Mesh(armG,bm); a1.position.set(0,1.45,.38); const a2=a1.clone(); a2.position.z=-.38; g.add(a1,a2);
     g.position.set(x,0,z); g.rotation.y=-Math.atan2(p.z-z,p.x-x); levelGroup.add(g); fans.push({ g, a1, a2, i:ci, ph:R()*6, jump:0 }); } });
   // ghost
-  const rec = store.get(`rec_${li}_${S.mode}`, null);
-  S.best = rec; ghostRig.tractor.visible = ghostRig.trailer.visible = false;
+  const rec = store.get(recKey(li), null);
+  S.best = rec; showGhost(false);
 }
 
 // ================= GAME STATE =================
 const S = {
-  state:'menu', level: store.get('lastLevel',0), mode: store.get('mode','rookie'), paint: store.get('paint',0), cam:0, guide:true,
-  x:0,z:0,th:0,ph:0,dl:0,v:0, nitro:.5, time:0, pen:0, bonus:0, cdown:0,
+  state:'menu', level: store.get('lastLevel',0), mode: store.get('mode','rookie'), paint: store.get('paint',0), rig: store.get('rig','box'), cam:0, guide:true,
+  x:0,z:0,th:0,ph:0,ph2:0,dl:0,v:0, jackJoint:1, unlocked:[], nitro:.5, time:0, pen:0, bonus:0, cdown:0,
   conesHit:0, walls:0, jacks:0, resets:0, cansGot:0, perfect:false,
   hitchIdx:0, rearIdx:0, nextCp:0, splits:[], ghost:[], ghostResets:[], ghostT:0, best:null,
   wasHit:false, lastImpact:-9, shake:0, nopeT:0, finishT:0, wheelDist:0, steerAxis:0, jackT:0, totalAtFinish:0,
@@ -458,14 +491,16 @@ const keys = { rev:false, brake:false, left:false, right:false, nitro:false };
 mats.paint.color.set(PAINTS[S.paint]);
 
 function poseAt(rearI){
-  const step = 1.5; const R0 = T.pts[clamp(rearI,0,T.N-1)];
-  const hi = clamp(Math.round(rearI - TR_BACK/step), 0, T.N-1), fi = clamp(Math.round(rearI - (TR_BACK+4.5)/step), 0, T.N-1);
-  const H = T.pts[hi], F = T.pts[fi];
-  let ph = Math.atan2(H.z-R0.z, H.x-R0.x); let th = (hi===fi) ? ph : Math.atan2(F.z-H.z, F.x-H.x);
+  const step = 1.5, at = d => T.pts[clamp(Math.round(rearI - d/step), 0, T.N-1)], ang = (a,b) => Math.atan2(b.z-a.z, b.x-a.x);
+  const R0 = T.pts[clamp(rearI,0,T.N-1)], back = RS.parts[RS.parts.length-1][1], H = at(RS.len), F = at(RS.len+4.5);
+  let ph = ang(R0, at(back)), x = R0.x + Math.cos(ph)*back, z = R0.z + Math.sin(ph)*back, ph2 = ph;
+  if(RS.L){ ph = ang(at(back), H); x += Math.cos(ph)*RS.L; z += Math.sin(ph)*RS.L; }
+  let th = (H===F) ? ph : ang(H, F);
   while(th-ph>Math.PI) th-=Math.PI*2; while(th-ph<-Math.PI) th+=Math.PI*2;
-  return { x: R0.x + Math.cos(ph)*TR_BACK, z: R0.z + Math.sin(ph)*TR_BACK, th, ph };
+  while(ph2-ph>Math.PI) ph2-=Math.PI*2; while(ph2-ph<-Math.PI) ph2+=Math.PI*2;
+  return { x, z, th, ph, ph2 };
 }
-function placeRig(rearI){ const p=poseAt(rearI); S.x=p.x; S.z=p.z; S.th=p.th; S.ph=p.ph; S.v=0; S.dl=0; S.hitchIdx=nearest(S.x,S.z,rearI,200).i; S.rearIdx=rearI; }
+function placeRig(rearI){ const p=poseAt(rearI); S.x=p.x; S.z=p.z; S.th=p.th; S.ph=p.ph; S.ph2=p.ph2; S.v=0; S.dl=0; S.hitchIdx=nearest(S.x,S.z,rearI,200).i; S.rearIdx=rearI; }
 
 function startLevel(li){
   clearTimeout(resultsTimer); resultsTimer=null;
@@ -485,8 +520,9 @@ function startLevel(li){
   prepMinimap();
   snapCamera();
   const ghostOn = S.best && S.best.ghost && S.best.ghost.length>4;
-  ghostRig.tractor.visible = ghostRig.trailer.visible = !!ghostOn;
-  showHint(isTouch && li===0 ? 'Hold REV to reverse. Use the arrows to steer, STOP to brake, and RESET for a tow (+3s).' :
+  showGhost(!!ghostOn);
+  showHint(RS.L && !ghostOn ? (S.mode==='rookie' ? 'ROAD TRAIN: hitch-assist steers the REAR trailer. Give the corners room!' : 'ROAD TRAIN PRO: two hitches, zero assists. Watch the gauge — it shows the worse one!') :
+    isTouch && li===0 ? 'Hold REV to reverse. Use the arrows to steer, STOP to brake, and RESET for a tow (+3s).' :
     li===0 && S.mode==='rookie' ? 'Hold S / ↓ to reverse. Steer A/D — the trailer follows your keys. Follow the cyan guide!' :
     li===0 ? 'PRO: raw steering. Counter-steer early or jackknife!' : (ghostOn ? 'Racing your ghost 👻 — beat your best!' : LEVELS[li].sub), 4.5);
 }
@@ -498,23 +534,40 @@ function flash(col,op=.5){ const f=$('flash'); f.style.transition='none'; f.styl
 
 // ================= PHYSICS =================
 const fwd = a => [Math.cos(a), Math.sin(a)];
-function steerTarget(th, ph, axis){
-  if(S.mode==='rookie'){ const g=th-ph; const gs=axis*0.62; const tn=WB*(-0.36*(g-gs) - Math.sin(g)/DH); return clamp(Math.atan(tn),-MAXSTEER,MAXSTEER); }
-  return axis*MAXSTEER;
+function steerTarget(st, axis){
+  if(S.mode!=='rookie') return axis*MAXSTEER;
+  const D=RS.D[0], g=st.th-st.ph; let gs=axis*0.62, k=0.36;
+  if(RS.L){ // cascade: pick the lead-trailer angle that swings the rear trailer toward the requested angle
+    const D2=RS.D[1], g2=st.ph-st.ph2, c=-1/D+Math.cos(g2)*(D-RS.L)/(D*D2);
+    gs=Math.asin(clamp((-RS.k2*(g2-axis*RS.gs)-Math.sin(g2)/D2)/c,-RS.gmax,RS.gmax)); k=0.6; }
+  return clamp(Math.atan(WB*(-k*(g-gs) - Math.sin(g)/D)),-MAXSTEER,MAXSTEER);
 }
-function kin(st, v, h){ const c=Math.cos(st.th), s=Math.sin(st.th); st.x+=v*c*h; st.z+=v*s*h; st.th+=-v/WB*Math.tan(st.dl)*h; st.ph+=v/DH*Math.sin(st.th-st.ph)*h; }
+function kin(st, v, h){ const c=Math.cos(st.th), s=Math.sin(st.th); st.x+=v*c*h; st.z+=v*s*h; st.th+=-v/WB*Math.tan(st.dl)*h;
+  const dph=v/RS.D[0]*Math.sin(st.th-st.ph);
+  // B-double: the fifth wheel sits L behind the lead hitch, so it also swings sideways as the lead trailer yaws.
+  if(RS.L) st.ph2+=(v*Math.sin(st.th-st.ph2) - RS.L*dph*Math.cos(st.ph-st.ph2))/RS.D[1]*h;
+  st.ph+=dph*h; }
+// Trailer bodies as [hitchX, hitchZ, heading, front, back].
+function bodies(st=S){ const p=RS.parts, out=[[st.x,st.z,st.ph,p[0][0],p[0][1]]];
+  if(RS.L) out.push([st.x-Math.cos(st.ph)*RS.L, st.z-Math.sin(st.ph)*RS.L, st.ph2, p[1][0], p[1][1]]);
+  return out; }
+function rearOf(st=S){ const b=bodies(st).pop(); return [b[0]-Math.cos(b[2])*b[4], b[1]-Math.sin(b[2])*b[4]]; }
+function hitchAngle(st=S){ const g1=st.th-st.ph, g2=RS.L?st.ph-st.ph2:0; return Math.abs(g2)>Math.abs(g1)?g2:g1; }
 function rigPoints(){
-  const out=[]; const [c,s]=fwd(S.th), [cp,sp]=fwd(S.ph);
+  const out=[]; const [c,s]=fwd(S.th);
   const tp=(lx,ly)=>out.push([S.x+c*lx+s*ly, S.z+s*lx-c*ly]);
-  const pp=(lx,ly)=>out.push([S.x+cp*lx+sp*ly, S.z+sp*lx-cp*ly]);
   for(const ly of [TC_W/2,-TC_W/2]){ tp(TC_FRONT,ly); tp(TC_BACK*-1+0.2,ly); tp(3,ly); }
-  for(const ly of [TR_W/2,-TR_W/2]){ for(const lx of [TR_FRONT,-2.5,-5,-7.5,-TR_BACK]) pp(lx,ly); }
+  for(const [x,z,h,f,bk] of bodies()){ const cp=Math.cos(h), sp=Math.sin(h), xs=[f];
+    for(let lx=-2.5; lx>-bk+1.5; lx-=2.5) xs.push(lx); xs.push(-bk);
+    for(const ly of [TR_W/2,-TR_W/2]) for(const lx of xs) out.push([x+cp*lx+sp*ly, z+sp*lx-cp*ly]); }
   return out;
 }
 function inRig(x,z,pad){
   let dx=x-S.x, dz=z-S.z; let c=Math.cos(S.th), s=Math.sin(S.th);
   let lx=dx*c+dz*s, ly=dx*s-dz*c; if(lx>-TC_BACK-pad && lx<TC_FRONT+pad && Math.abs(ly)<TC_W/2+pad) return 1;
-  c=Math.cos(S.ph); s=Math.sin(S.ph); lx=dx*c+dz*s; ly=dx*s-dz*c; if(lx>-TR_BACK-pad && lx<TR_FRONT+pad && Math.abs(ly)<TR_W/2+pad) return 2;
+  const bs=bodies();
+  for(let i=0;i<bs.length;i++){ const [bx,bz,h,f,bk]=bs[i]; dx=x-bx; dz=z-bz; c=Math.cos(h); s=Math.sin(h); lx=dx*c+dz*s; ly=dx*s-dz*c;
+    if(lx>-bk-pad && lx<f+pad && Math.abs(ly)<TR_W/2+pad) return i+2; }
   return 0;
 }
 
@@ -526,7 +579,7 @@ function physics(h){
   // steering
   const axis = (keys.left?1:0) - (keys.right?1:0);
   S.steerAxis += clamp(axis - S.steerAxis, -h*(S.mode==='rookie'?5:4), h*(S.mode==='rookie'?5:4));
-  if(S.state!=='jack'){ const tgt=steerTarget(S.th,S.ph,S.steerAxis); const rate=S.mode==='rookie'?6:2.6; S.dl+=clamp(tgt-S.dl,-rate*h,rate*h); }
+  if(S.state!=='jack'){ const tgt=steerTarget(S,S.steerAxis); const rate=S.mode==='rookie'?6:2.6; S.dl+=clamp(tgt-S.dl,-rate*h,rate*h); }
   // speed
   const vmax = nitroOn ? 22 : 15;
   if(rev){ S.v -= (nitroOn?16:8.5)*h*(1-Math.max(0,-S.v)/vmax*.6); }
@@ -562,11 +615,11 @@ function physics(h){
   S.wasHit=hit;
   // track progress
   S.hitchIdx = nearest(S.x,S.z,S.hitchIdx,30).i;
-  const [cp,sp]=fwd(S.ph); const rx=S.x-cp*TR_BACK, rz=S.z-sp*TR_BACK; S.rx=rx; S.rz=rz;
-  S.rearIdx = nearest(rx,rz,S.hitchIdx+7,30).i;
-  // jackknife
-  const gam=S.th-S.ph;
-  if(racing && Math.abs(gam)>JACK){ jackknife(); }
+  const [rx,rz]=rearOf(); S.rx=rx; S.rz=rz;
+  S.rearIdx = nearest(rx,rz,S.hitchIdx+Math.round(RS.len/1.5),30).i;
+  // jackknife (either hitch on a road train)
+  const g1=S.th-S.ph, g2=RS.L?S.ph-S.ph2:0;
+  if(racing && (Math.abs(g1)>JACK || Math.abs(g2)>JACK)){ S.jackJoint=Math.abs(g2)>JACK?2:1; jackknife(); }
 }
 
 function jackknife(){
@@ -575,7 +628,7 @@ function jackknife(){
 }
 function resetToCheckpoint(manual){
   const ci = S.nextCp>0 ? T.cps[S.nextCp-1] : T.startIdx;
-  const nextSample=S.ghost.length/4;
+  const nextSample=S.ghost.length/ghostStride();
   if(nextSample>0 && S.ghostResets[S.ghostResets.length-1]!==nextSample) S.ghostResets.push(nextSample);
   placeRig(ci); S.state='race'; S.wasHit=false;
   if(manual){ S.resets++; S.pen+=3; popup('TOW TRUCK! +3.0s','bad'); }
@@ -584,19 +637,26 @@ function resetToCheckpoint(manual){
 
 function finishRace(){
   S.state='finished'; S.finishT=0;
-  const gam=Math.abs(S.th-S.ph);
+  const gam=Math.abs(hitchAngle());
   if(Math.abs(S.v)<6 && gam<.14){ S.perfect=true; S.bonus+=2; popup('PERFECT DOCK! -2.0s','good'); }
   const total = S.time + S.pen - S.bonus; S.totalAtFinish = total;
   SFX.finish(); big('DELIVERED!','#69f0ae'); flash('#fff',.4);
   confettiBurst(S.rx,S.rz);
-  const key=`rec_${S.level}_${S.mode}`; const prev=store.get(key,null);
+  const key=recKey(S.level); const prev=store.get(key,null);
   const newRec = !prev || total < prev.t;
-  if(newRec){ store.set(key,{ t:total, ghost:S.ghost, ghostResets:S.ghostResets, splits:S.splits }); }
+  if(newRec){ store.set(key,{ t:total, ghost:S.ghost, ghostResets:S.ghostResets, splits:S.splits, ...(RS.L?{stride:ghostStride()}:{}) }); }
   const med = medalFor(S.level, S.mode, total);
+  const locked=Object.keys(RIGS).filter(r=>!rigUnlocked(r));
   const mk=`medal_${S.level}`; const pm=store.get(mk,0); if(med.rank>pm) store.set(mk,med.rank);
+  S.unlocked=locked.filter(rigUnlocked);
   resultsTimer=setTimeout(()=>{ resultsTimer=null; showResults(total, prev, newRec, med); }, 2200);
 }
-function targetsFor(li, mode){ const tr=buildTrackCache(li); const k = mode==='pro'?1.12:1; const r=x=>Math.round(x*2)/2;
+// Box-van records keep their original keys; other rigs get their own leaderboards and ghosts.
+const recKey = (li, mode=S.mode, rig=S.rig) => `rec_${li}_${mode}${rig==='box'?'':'_'+rig}`;
+const ghostStride = () => RS.L?5:4;
+const medalCount = () => LEVELS.filter((_,i)=>store.get(`medal_${i}`,0)>0).length;
+const rigUnlocked = r => medalCount() >= (RIGS[r].unlock||0);
+function targetsFor(li, mode){ const tr=buildTrackCache(li); const k = (mode==='pro'?1.12:1)*(RS.medalK||1); const r=x=>Math.round(x*2)/2;
   return { gold:r(tr.raceLen/9.2*k), silver:r(tr.raceLen/7*k), bronze:r(tr.raceLen/5*k) }; }
 const tcache={}; function buildTrackCache(li){ return tcache[li] || (tcache[li]=buildTrack(LEVELS[li])); }
 function medalFor(li, mode, t){ const g=targetsFor(li,mode); if(t<=g.gold) return {rank:3,icon:'🥇',name:'GOLD'}; if(t<=g.silver) return {rank:2,icon:'🥈',name:'SILVER'}; if(t<=g.bronze) return {rank:1,icon:'🥉',name:'BRONZE'}; return {rank:0,icon:'📦',name:'DELIVERED'}; }
@@ -615,6 +675,7 @@ function showResults(total, prev, newRec, med){
   if(S.resets) rows.push([`Tow trucks ×${S.resets}`,'+'+(S.resets*3).toFixed(1)+'s','b']);
   if(S.cansGot) rows.push([`Diesel cans ×${S.cansGot}`,'−'+S.cansGot.toFixed(1)+'s','g']);
   if(S.perfect) rows.push(['Perfect dock','−2.0s','g']);
+  S.unlocked.forEach(r=>rows.push([`🔓 ${RIGS[r].name} UNLOCKED!`,'NEW','g']));
   if(!S.conesHit && !S.walls && !S.jacks && !S.resets) rows.push(['🧼 CLEAN RUN','✓','g']);
   $('rStats').innerHTML = rows.map(r=>`<div class="${r[2]}">${r[0]}</div><div class="${r[2]}" style="text-align:right;font-weight:800">${r[1]}</div>`).join('');
   const g=targetsFor(S.level,S.mode);
@@ -626,12 +687,13 @@ function showResults(total, prev, newRec, med){
 // ================= UPDATE LOOP =================
 const camPos=new THREE.Vector3(), camLook=new THREE.Vector3(), tmpV=new THREE.Vector3(), tmpL=new THREE.Vector3();
 const CAMS=['CHASE CAM','DRONE CAM','MIRROR CAM'];
+// Point on the last trailer used to frame the rig, plus that trailer's heading.
+function rigCenter(){ const [x,z,h]=bodies().pop(), o=RS.L?1:5; return [x-Math.cos(h)*o, z-Math.sin(h)*o, h]; }
 function camTarget(){
-  const [c,s]=fwd(S.th), [cp,sp]=fwd(S.ph);
-  const cx=S.x-cp*5, cz=S.z-sp*5; const spd=Math.abs(S.v);
-  if(S.cam===0){ const back=17+spd*.25; tmpV.set(cx+cp*back, 9+spd*.12, cz+sp*back); tmpL.set(cx-cp*14, 1, cz-sp*14); }
-  else if(S.cam===1){ tmpV.set(cx+cp*10, 42, cz+sp*10); tmpL.set(cx-cp*10, 0, cz-sp*10); }
-  else { const lx=s, lz=-c; tmpV.set(S.x+c*4.05+lx*1.9, 3.35, S.z+s*4.05+lz*1.9); tmpL.set(S.x-cp*24+lx*.9, 1.2, S.z-sp*24+lz*.9); }
+  const [c,s]=fwd(S.th), [cx,cz,h]=rigCenter(), [cp,sp]=fwd(h); const spd=Math.abs(S.v), big=RS.L?1:0;
+  if(S.cam===0){ const back=17+big*5+spd*.25; tmpV.set(cx+cp*back, 9+big*2+spd*.12, cz+sp*back); tmpL.set(cx-cp*14, 1, cz-sp*14); }
+  else if(S.cam===1){ tmpV.set(cx+cp*10, 42+big*8, cz+sp*10); tmpL.set(cx-cp*10, 0, cz-sp*10); }
+  else { const lx=s, lz=-c, [rx,rz]=rearOf(); tmpV.set(S.x+c*4.05+lx*1.9, 3.35, S.z+s*4.05+lz*1.9); tmpL.set(rx-cp*13+lx*.9, 1.2, rz-sp*13+lz*.9); }
 }
 function snapCamera(){ camTarget(); camPos.copy(tmpV); camLook.copy(tmpL); }
 
@@ -642,10 +704,10 @@ const guide=new THREE.Points(guideGeo,guideMat); guide.frustumCulled=false; scen
 function updGuide(){
   guide.visible = S.guide && (S.state==='race'||S.state==='countdown');
   if(!guide.visible) return;
-  const st={ x:S.x,z:S.z,th:S.th,ph:S.ph,dl:S.dl }; const v=Math.min(-6, S.v); const arr=guideGeo.attributes.position.array; let danger=false;
-  for(let i=0;i<GN;i++){ for(let k=0;k<3;k++){ const tg=steerTarget(st.th,st.ph,S.steerAxis); const r=S.mode==='rookie'?6:2.6; st.dl+=clamp(tg-st.dl,-r*.02,r*.02); kin(st,v,.02); }
-    if(Math.abs(st.th-st.ph)>JACK*.85) danger=true;
-    const [cp,sp]=fwd(st.ph); arr[i*3]=st.x-cp*TR_BACK; arr[i*3+1]=.25; arr[i*3+2]=st.z-sp*TR_BACK; }
+  const st={ x:S.x,z:S.z,th:S.th,ph:S.ph,ph2:S.ph2,dl:S.dl }; const v=Math.min(-6, S.v); const arr=guideGeo.attributes.position.array; let danger=false;
+  for(let i=0;i<GN;i++){ for(let k=0;k<3;k++){ const tg=steerTarget(st,S.steerAxis); const r=S.mode==='rookie'?6:2.6; st.dl+=clamp(tg-st.dl,-r*.02,r*.02); kin(st,v,.02); }
+    if(Math.abs(hitchAngle(st))>JACK*.85) danger=true;
+    const [rx,rz]=rearOf(st); arr[i*3]=rx; arr[i*3+1]=.25; arr[i*3+2]=rz; }
   guideGeo.attributes.position.needsUpdate=true; guideMat.color.set(danger?0xff1744:0x00e5ff);
 }
 
@@ -657,11 +719,11 @@ function update(dt){
     if(n!==S.lastCount && n>0){ S.lastCount=n; big(String(n),'#ffd54f'); SFX.count(); }
     if(S.cdown<=0){ S.state='race'; big('REVERSE!','#ff6d00'); SFX.go(); }
   }
-  if(st==='jack'){ S.jackT-=dt; S.th += (S.th-S.ph>0?1:-1)*dt*.4; if(S.jackT<=0){ resetToCheckpoint(false); } }
+  if(st==='jack'){ S.jackT-=dt; if(S.jackJoint===2) S.ph2 -= (S.ph-S.ph2>0?1:-1)*dt*.4; else S.th += (S.th-S.ph>0?1:-1)*dt*.4; if(S.jackT<=0){ resetToCheckpoint(false); } }
   const sub=4; for(let i=0;i<sub;i++) physics(dt/sub);
   if(S.state==='race'){
     S.time+=dt;
-    S.ghostT+=dt; if(S.ghostT>=.05){ S.ghostT-=.05; S.ghost.push(+S.x.toFixed(2),+S.z.toFixed(2),+S.th.toFixed(3),+S.ph.toFixed(3)); }
+    S.ghostT+=dt; if(S.ghostT>=.05){ S.ghostT-=.05; S.ghost.push(+S.x.toFixed(2),+S.z.toFixed(2),+S.th.toFixed(3),+S.ph.toFixed(3)); if(RS.L) S.ghost.push(+S.ph2.toFixed(3)); }
     // checkpoints
     if(S.nextCp<T.cps.length && S.rearIdx>=T.cps[S.nextCp]){
       const tot=S.time+S.pen-S.bonus; S.splits.push(tot);
@@ -678,7 +740,7 @@ function update(dt){
   // cones
   for(const c of cones){
     if(!c.hit){ if(S.state==='race'||S.state==='jack'){ const r=inRig(c.x,c.z,.38); if(r){ c.hit=true; S.conesHit++; S.pen+=2; SFX.cone(); popup('CONE! +2.0s','bad'); S.shake=Math.max(S.shake,.35);
-        const a = r===1?S.th:S.ph; const vx=S.v*Math.cos(a), vz=S.v*Math.sin(a); const ox=c.x-S.x, oz=c.z-S.z, ol=Math.hypot(ox,oz)||1;
+        const a = r===1?S.th:bodies()[r-2][2]; const vx=S.v*Math.cos(a), vz=S.v*Math.sin(a); const ox=c.x-S.x, oz=c.z-S.z, ol=Math.hypot(ox,oz)||1;
         c.vx=vx*1.3+ox/ol*3+(Math.random()-.5)*3; c.vz=vz*1.3+oz/ol*3+(Math.random()-.5)*3; c.vy=5+Math.abs(S.v)*.5; c.wx=(Math.random()-.5)*16; c.wz=(Math.random()-.5)*16; } } }
     else { c.vy-=22*dt; c.x+=c.vx*dt; c.z+=c.vz*dt; c.y+=c.vy*dt; c.rx+=c.wx*dt; c.rz+=c.wz*dt;
       if(c.y<0){ c.y=0; c.vy*=-.35; c.vx*=.6; c.vz*=.6; c.wx*=.6; c.wz*=.6; if(Math.abs(c.vy)<1){ c.vy=0; c.rx=lerp(c.rx,Math.PI/2*Math.sign(c.rx||1),.2); } }
@@ -699,7 +761,7 @@ function update(dt){
   if(Math.random() < (throttle? .8 : .15)){ for(const sd of [1,-1]){ const x=S.x+c0*1.55+lx*1.2*sd, z=S.z+s0*1.55+lz*1.2*sd;
     if(S.nitroOn){ emit(x,5.1,z,{ vy:6, vx:(Math.random()-.5), vz:(Math.random()-.5), c:Math.random()<.5?0x40c4ff:0xb388ff, add:true, life:.35, s0:.9, s1:.3, a:1 }); }
     else emit(x,5.1,z,{ vy:2.5+throttle*2, vx:(Math.random()-.5)+c0*S.v*-.05, vz:(Math.random()-.5), c:throttle?0x333333:0x888888, life:1.6, s0:.5, s1:2.6, a:throttle?.45:.25 }); } }
-  if(Math.abs(S.v)>7 && Math.random()<.5){ const [cp,sp]=fwd(S.ph); const x=S.x-cp*8.6, z=S.z-sp*8.6; for(const sd of [1,-1]) emit(x+sp*1.3*sd,.4,z-cp*1.3*sd,{ vy:.8, vx:(Math.random()-.5)*2, vz:(Math.random()-.5)*2, c:T.night?0x555566:0xc8b49a, life:1.2, s0:.8, s1:3.5, a:.3 }); }
+  if(Math.abs(S.v)>7) bodies().forEach(([bx,bz,h],i)=>{ if(Math.random()>=.5) return; const [cp,sp]=fwd(h), d=RS.D[i]+.6; const x=bx-cp*d, z=bz-sp*d; for(const sd of [1,-1]) emit(x+sp*1.3*sd,.4,z-cp*1.3*sd,{ vy:.8, vx:(Math.random()-.5)*2, vz:(Math.random()-.5)*2, c:T.night?0x555566:0xc8b49a, life:1.2, s0:.8, s1:3.5, a:.3 }); });
   if(S.state==='finished' && S.finishT<3 && Math.random()<.3){ emit(S.rx+(Math.random()-.5)*8, 5+Math.random()*4, S.rz+(Math.random()-.5)*8,{ c:confCols[Math.floor(Math.random()*6)], add:true, life:.8, s0:1.5, s1:.1, a:1, vy:2 }); }
   updParts(dt); updConf(dt); updGuide();
   // audio
@@ -710,27 +772,26 @@ function update(dt){
 
 function updateVisuals(dt){
   if(T && T.night) scene.background.userData.twinkle(dt);
-  rig.tractor.position.set(S.x,0,S.z); rig.tractor.rotation.y=-S.th;
-  rig.trailer.position.set(S.x,0,S.z); rig.trailer.rotation.y=-S.ph;
+  poseRig(rig, S.x, S.z, S.th, S.ph, S.ph2);
   rig.steerPivots.forEach(p=>p.rotation.y=S.dl);
   rig.spinners.forEach(w=>w.sp.rotation.z=-S.wheelDist/w.r);
   const acc = (keys.rev&&S.state==='race')?1:0; rig.cab.rotation.x = lerp(rig.cab.rotation.x, -S.dl*.04*Math.abs(S.v)/15, .1); rig.cab.position.y = Math.sin(performance.now()/60)*.012*(1+acc);
   mats.rev.emissiveIntensity = (S.v<-.2? (T&&T.night?4:2.2) : .3);
   // ghost
   if(ghostRig.tractor.visible && S.best && (S.state==='race'||S.state==='finished'||S.state==='jack')){
-    const g=S.best.ghost; const n=g.length/4; const f=S.time/.05; const i=Math.min(n-2,Math.floor(f)); const k=clamp(f-i,0,1);
-    if(i>=0){ const a=i*4,b=(i+1)*4;
+    const g=S.best.ghost, gs=S.best.stride||4; const n=g.length/gs; const f=S.time/.05; const i=Math.min(n-2,Math.floor(f)); const k=clamp(f-i,0,1);
+    if(i>=0){ const a=i*gs,b=(i+1)*gs;
       // Older recordings lack reset markers; a normal 50 ms sample moves about 1 m.
       const reset=S.best.ghostResets?.includes(i+1) || Math.hypot(g[b]-g[a],g[b+1]-g[a+1])>3;
       const t=reset && k<1 ? 0 : k;
       const gx=lerp(g[a],g[b],t), gz=lerp(g[a+1],g[b+1],t), gt=lerpAngle(g[a+2],g[b+2],t), gp=lerpAngle(g[a+3],g[b+3],t);
-      ghostRig.tractor.position.set(gx,.02,gz); ghostRig.tractor.rotation.y=-gt; ghostRig.trailer.position.set(gx,.02,gz); ghostRig.trailer.rotation.y=-gp; }
-  } else if(S.state==='countdown' && ghostRig.tractor.visible){ ghostRig.tractor.position.set(S.x,.02,S.z); ghostRig.tractor.rotation.y=-S.th; ghostRig.trailer.position.set(S.x,.02,S.z); ghostRig.trailer.rotation.y=-S.ph; }
+      poseRig(ghostRig, gx, gz, gt, gp, gs>4?lerpAngle(g[a+4],g[b+4],t):gp, .02); }
+  } else if(S.state==='countdown' && ghostRig.tractor.visible){ poseRig(ghostRig, S.x, S.z, S.th, S.ph, S.ph2, .02); }
   // camera
   if(S.state!=='menu'){
     camTarget(); const r = S.cam===2 ? 1-Math.exp(-dt*14) : 1-Math.exp(-dt*3.6);
     if(S.state==='finished'||S.state==='results'){ // orbit
-      const a=S.finishT*.35; const [cp,sp]=fwd(S.ph); tmpL.set(S.x-cp*5,2,S.z-sp*5); tmpV.set(tmpL.x+Math.cos(a+S.ph)*22, 9, tmpL.z+Math.sin(a+S.ph)*22); }
+      const a=S.finishT*.35, [cx,cz,h]=rigCenter(), d=RS.L?28:22; tmpL.set(cx,2,cz); tmpV.set(cx+Math.cos(a+h)*d, 9, cz+Math.sin(a+h)*d); }
     camPos.lerp(tmpV,r); camLook.lerp(tmpL, S.cam===2?r:1-Math.exp(-dt*5));
     camera.position.copy(camPos);
     if(S.shake>0){ camera.position.x+=(Math.random()-.5)*S.shake*.8; camera.position.y+=(Math.random()-.5)*S.shake*.8; camera.position.z+=(Math.random()-.5)*S.shake*.8; }
@@ -738,11 +799,11 @@ function updateVisuals(dt){
     const fov = 60 + Math.abs(S.v)*.45 + (S.nitroOn?10:0); camera.fov=lerp(camera.fov,fov,.08); camera.updateProjectionMatrix();
   }
   // sun follows
-  if(T){ sun.position.set(S.x+T.sunDir.x*120, T.sunDir.y*120, S.z+T.sunDir.z*120); sun.target.position.set(S.x-Math.cos(S.ph)*5,0,S.z-Math.sin(S.ph)*5); }
+  if(T){ sun.position.set(S.x+T.sunDir.x*120, T.sunDir.y*120, S.z+T.sunDir.z*120); const [cx,cz]=rigCenter(); sun.target.position.set(cx,0,cz); }
 }
 
 let menuA=0;
-function menuCam(dt){ if(!T) return; menuA+=dt*.12; const cx=S.x-Math.cos(S.ph)*4, cz=S.z-Math.sin(S.ph)*4; camera.position.set(cx+Math.cos(menuA)*24, 8+Math.sin(menuA*.7)*2, cz+Math.sin(menuA)*24); camera.lookAt(cx,2,cz); camera.fov=55; camera.updateProjectionMatrix(); }
+function menuCam(dt){ if(!T) return; menuA+=dt*.12; const [cx,cz]=rigCenter(), d=RS.L?30:24; camera.position.set(cx+Math.cos(menuA)*d, 8+Math.sin(menuA*.7)*2, cz+Math.sin(menuA)*d); camera.lookAt(cx,2,cz); camera.fov=55; camera.updateProjectionMatrix(); }
 
 // ================= HUD =================
 const mm=$('minimap'), mg=mm.getContext('2d'); let mmB=null;
@@ -756,7 +817,7 @@ function drawMinimap(){
   cones.forEach(c=>{ if(!c.hit){ mg.fillStyle='#ff6d00'; mg.fillRect(mmX(c.x)-2,mmZ(c.z)-2,4,4); } });
   if(ghostRig.tractor.visible){ mg.fillStyle='#66e8ffaa'; mg.beginPath(); mg.arc(mmX(ghostRig.tractor.position.x),mmZ(ghostRig.tractor.position.z),6,0,7); mg.fill(); }
   // rig
-  const [c,s]=fwd(S.th), [cp,sp]=fwd(S.ph); mg.lineWidth=7; mg.strokeStyle='#fff'; mg.beginPath(); mg.moveTo(mmX(S.x),mmZ(S.z)); mg.lineTo(mmX(S.x-cp*TR_BACK),mmZ(S.z-sp*TR_BACK)); mg.stroke();
+  const [c,s]=fwd(S.th), [rx,rz]=rearOf(); mg.lineWidth=7; mg.strokeStyle='#fff'; mg.beginPath(); mg.moveTo(mmX(S.x),mmZ(S.z)); bodies().slice(1).forEach(b=>mg.lineTo(mmX(b[0]),mmZ(b[1]))); mg.lineTo(mmX(rx),mmZ(rz)); mg.stroke();
   mg.strokeStyle=PAINTS[S.paint]==='#f5f5f5'?'#ffb300':PAINTS[S.paint]; mg.lineWidth=8; mg.beginPath(); mg.moveTo(mmX(S.x),mmZ(S.z)); mg.lineTo(mmX(S.x+c*TC_FRONT),mmZ(S.z+s*TC_FRONT)); mg.stroke();
 }
 let hudT=0;
@@ -768,11 +829,11 @@ function updHUD(dt){
   const kmh=Math.round(Math.abs(S.v)*3.6); $('speedo').innerHTML=kmh+'<small>KM/H</small>';
   $('gear').classList.toggle('blink', S.v<-.3);
   $('nitroFill').style.width=(S.nitro*100)+'%';
-  const gam=S.th-S.ph; $('needle').setAttribute('transform',`rotate(${clamp(-gam/JACK*90,-95,95)} 110 110)`);
+  const gam=hitchAngle(); $('needle').setAttribute('transform',`rotate(${clamp(-gam/JACK*90,-95,95)} 110 110)`);
   const danger=clamp((Math.abs(gam)/JACK-.6)/.4,0,1); $('vignette').style.opacity = S.state==='jack'?.9: danger*.8;
   $('speedlines').style.opacity = S.nitroOn?1:0;
   const done=clamp((S.rearIdx-T.startIdx)/(T.finishIdx-T.startIdx),0,1); $('progFill').style.width=(done*100)+'%';
-  $('cpTxt').textContent = `CHECKPOINT ${Math.min(S.nextCp,T.cps.length-1)}/${T.cps.length-1} · ${S.mode.toUpperCase()}`;
+  $('cpTxt').textContent = `CHECKPOINT ${Math.min(S.nextCp,T.cps.length-1)}/${T.cps.length-1} · ${S.mode.toUpperCase()}${RS.L?' · '+RS.name:''}`;
   $('camName').textContent=CAMS[S.cam];
   if(isTouch){
     $('touchCam').textContent=CAMS[S.cam].replace(' CAM','');
@@ -838,21 +899,26 @@ $('rRetry').onclick=()=>startLevel(S.level); $('rMenu').onclick=toMenu; $('rNext
 $('goBtn').onclick=()=>startLevel(S.level);
 
 // ================= MENU =================
+const rigDesc = r => RIGS[r].unlock ? (rigUnlocked(r) ? 'ROAD TRAIN: B-double with two pivots and 16 m of trailer. Separate records; medal times +15%.' : `🔒 ROAD TRAIN: earn a medal on ${RIGS[r].unlock} courses to unlock (${medalCount()}/${RIGS[r].unlock}).`) : 'BOX VAN: one trailer, one hitch. The classic.';
 const modeDesc = { rookie:'ROOKIE: Hitch-assist on. Steer where you want the trailer to go — the computer handles the counter-steer. Jackknife-proof.', pro:'PRO: Raw steering, just like a real rig. The trailer wants to fold. Counter-steer or JACKKNIFE (+3s). Separate leaderboard.' };
 function renderMenu(){
-  $('levels').innerHTML = LEVELS.map((lv,i)=>{ const rec=store.get(`rec_${i}_${S.mode}`,null); const med=rec?medalFor(i,S.mode,rec.t):null; const g=targetsFor(i,S.mode);
+  $('levels').innerHTML = LEVELS.map((lv,i)=>{ const rec=store.get(recKey(i),null); const med=rec?medalFor(i,S.mode,rec.t):null; const g=targetsFor(i,S.mode);
     return `<div class="lv ${i===S.level?'sel':''}" data-i="${i}"><div class="tod">${lv.icon}</div><div class="n">LEVEL ${i+1}</div><div class="t">${lv.name}</div><div class="s">${lv.sub}</div>
     <div class="m"><span>${rec?'BEST '+fmt(rec.t):'🥇 '+fmt(g.gold)}</span><span class="medal">${med?med.icon:'·'}</span></div></div>`; }).join('');
   document.querySelectorAll('.lv').forEach(el=>{ el.onclick=()=>{ S.level=+el.dataset.i; renderMenu(); previewLevel(); }; el.ondblclick=()=>startLevel(+el.dataset.i); });
   document.querySelectorAll('#modeSeg button').forEach(b=>{ b.classList.toggle('on', b.dataset.m===S.mode); b.onclick=()=>{ S.mode=b.dataset.m; store.set('mode',S.mode); renderMenu(); }; });
   $('modeDesc').textContent = modeDesc[S.mode];
+  document.querySelectorAll('#rigSeg button').forEach(b=>{ const r=b.dataset.r, ok=rigUnlocked(r); b.classList.toggle('on', r===S.rig); b.classList.toggle('locked', !ok);
+    b.textContent=(ok?'':'🔒 ')+RIGS[r].name; b.setAttribute('aria-disabled', !ok);
+    b.onclick=()=>{ if(!ok){ $('rigDesc').textContent=rigDesc(r); return; } S.rig=r; store.set('rig',r); applyRig(); previewed=-1; previewLevel(); renderMenu(); }; });
+  $('rigDesc').textContent = rigDesc(S.rig);
   $('paints').innerHTML = PAINTS.map((p,i)=>`<div class="sw ${i===S.paint?'on':''}" data-i="${i}" style="background:${p}"></div>`).join('');
   document.querySelectorAll('.sw').forEach(el=>el.onclick=()=>{ S.paint=+el.dataset.i; store.set('paint',S.paint); mats.paint.color.set(PAINTS[S.paint]); renderMenu(); });
 }
 let previewed=-1;
-function previewLevel(){ if(previewed===S.level) return; previewed=S.level; buildLevel(S.level); placeRig(T.startIdx); S.v=0; S.time=0; S.state='menu'; ghostRig.tractor.visible=ghostRig.trailer.visible=false; updateVisuals(0); }
+function previewLevel(){ if(previewed===S.level) return; previewed=S.level; buildLevel(S.level); placeRig(T.startIdx); S.v=0; S.time=0; S.state='menu'; showGhost(false); updateVisuals(0); }
 
-renderMenu(); previewLevel();
+applyRig(); renderMenu(); previewLevel();
 
 // ================= MAIN LOOP =================
 let last=performance.now();

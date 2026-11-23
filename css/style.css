@@ -60,6 +60,7 @@ h1.title span{color:#ff5722;display:block;font-size:.8em}
 .seg{display:flex;background:#0006;border-radius:12px;padding:4px;border:1px solid #fff2}
 .seg button{background:none;border:0;color:#fff;font-family:Bungee;font-size:14px;padding:8px 14px;border-radius:9px;cursor:pointer;opacity:.6}
 .seg button.on{background:#ffb300;color:#2a1200;opacity:1}
+.seg button.locked{opacity:.35;cursor:help}
 .lbl{font-weight:900;font-size:12px;letter-spacing:2px;opacity:.7}
 .sw{width:30px;height:30px;border-radius:50%;border:3px solid #fff3;cursor:pointer}
 .sw.on{border-color:#fff;box-shadow:0 0 0 3px #ffb30088}

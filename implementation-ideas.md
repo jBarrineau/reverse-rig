@@ -52,7 +52,11 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 ## 3. Creative & Fun Features
 
 ### 🚛 Wild Trailer & Cargo Types (Unlockable by Medals)
-- [ ] **Road Train (Double Trailer / B-Double):** Two articulation joints (`th`, `ph1`, `ph2`) for maximum Pro-mode chaos and bragging rights.
+- [x] **Road Train (Double Trailer / B-Double):** Two articulation joints (`th`, `ph1`, `ph2`) for maximum Pro-mode chaos and bragging rights.
+  - Added a `RIGS` table and a menu **RIG** selector. The Road Train unlocks after a medal on 3 courses and is a B-double: a 6.2 m-axle lead trailer, with a fifth wheel 7 m back pulling a 9.2 m rear trailer (16.2 m in all). Kinematics model the off-axle fifth wheel; collisions, cones/cans, guide, cameras, minimap, dust, and the night spotlight follow both trailers.
+  - Rookie hitch-assist cascades: the player steers the rear trailer's angle, and the assist picks the lead-trailer angle. Its gains were tuned offline to keep both hitch angles below ~0.52 rad. In Pro, either hitch past `JACK` jackknifes, and the hitch gauge shows the worse angle.
+  - Road-train records and ghosts use separate keys (`rec_<level>_<mode>_btrain`) with 5-value samples (`stride:5`); box-van records are unchanged. Medal times are +15%, and the results screen announces the unlock.
+  - Verified with Python + Playwright (headless Chromium) and the integrated browser: a rookie autopilot finished all 5 courses with both rigs and no jackknifes. Also checked unlock gating, results unlock row, separate records/ghost stride and playback, Pro jackknife on both hitches with reset, spotlight on the rear trailer, all cameras, and no console errors.
 - [ ] **Sloshing Liquid Tanker:** Chrome tanker trailer with simulated lateral liquid momentum that gently tugs the trailer wide out of sharp turns.
 - [ ] **Precarious Flatbed Cargo:** Open flatbed carrying stacked rubber ducks, traffic cones, or a giant disco ball; harsh braking or wall hits knock items onto the track, while keeping everything onboard awards a delivery bonus.
 - [ ] **Twitchy Pup Trailer:** Short-wheelbase trailer (small `DH`) that pivots twice as fast for frantic slalom runs.
