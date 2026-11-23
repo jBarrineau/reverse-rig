@@ -419,6 +419,7 @@ const S = {
   hitchIdx:0, rearIdx:0, nextCp:0, splits:[], ghost:[], ghostT:0, best:null,
   wasHit:false, lastImpact:-9, shake:0, nopeT:0, finishT:0, wheelDist:0, steerAxis:0, jackT:0, totalAtFinish:0,
 };
+let resultsTimer=null;
 const keys = { rev:false, brake:false, left:false, right:false, nitro:false };
 mats.paint.color.set(PAINTS[S.paint]);
 
@@ -433,6 +434,7 @@ function poseAt(rearI){
 function placeRig(rearI){ const p=poseAt(rearI); S.x=p.x; S.z=p.z; S.th=p.th; S.ph=p.ph; S.v=0; S.dl=0; S.hitchIdx=nearest(S.x,S.z,rearI,200).i; S.rearIdx=rearI; }
 
 function startLevel(li){
+  clearTimeout(resultsTimer); resultsTimer=null;
   SFX.init();
   S.level=li; store.set('lastLevel',li);
   buildLevel(li);
@@ -546,7 +548,7 @@ function finishRace(){
   if(newRec){ store.set(key,{ t:total, ghost:S.ghost, splits:S.splits }); }
   const med = medalFor(S.level, S.mode, total);
   const mk=`medal_${S.level}`; const pm=store.get(mk,0); if(med.rank>pm) store.set(mk,med.rank);
-  setTimeout(()=>showResults(total, prev, newRec, med), 2200);
+  resultsTimer=setTimeout(()=>{ resultsTimer=null; showResults(total, prev, newRec, med); }, 2200);
 }
 function targetsFor(li, mode){ const tr=buildTrackCache(li); const k = mode==='pro'?1.12:1; const r=x=>Math.round(x*2)/2;
   return { gold:r(tr.raceLen/9.2*k), silver:r(tr.raceLen/7*k), bronze:r(tr.raceLen/5*k) }; }
@@ -756,7 +758,7 @@ function togglePause(){
   if(S.state==='paused'){ S.state=S.prevState; $('pauseS').classList.add('hide'); }
   else if(['race','countdown','jack'].includes(S.state)){ S.prevState=S.state; S.state='paused'; SFX.silence(); $('pauseS').classList.remove('hide'); }
 }
-function toMenu(){ S.state='menu'; SFX.silence(); $('results').classList.add('hide'); $('pauseS').classList.add('hide'); $('hud').style.display='none'; $('minimap').style.display='none'; $('touch').style.display='none'; renderMenu(); previewLevel(); }
+function toMenu(){ clearTimeout(resultsTimer); resultsTimer=null; S.state='menu'; SFX.silence(); $('results').classList.add('hide'); $('pauseS').classList.add('hide'); $('hud').style.display='none'; $('minimap').style.display='none'; $('touch').style.display='none'; renderMenu(); previewLevel(); }
 $('pResume').onclick=togglePause; $('pRetry').onclick=()=>startLevel(S.level); $('pMenu').onclick=toMenu;
 $('rRetry').onclick=()=>startLevel(S.level); $('rMenu').onclick=toMenu; $('rNext').onclick=()=>startLevel(Math.min(LEVELS.length-1,S.level+1));
 $('goBtn').onclick=()=>startLevel(S.level);

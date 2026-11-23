@@ -6,8 +6,9 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 
 ## 1. Bugs & Code Quality Fixes
 
-- [ ] **Cancel results timeout on restart/menu** (`src/main.js` — `finishRace`, `startLevel`, `toMenu`)
-  - Store the `setTimeout(() => showResults(...), 2200)` handle and clear it when starting a level or returning to the menu so the Results modal never pops up mid-countdown.
+- [x] **Cancel results timeout on restart/menu** (`src/main.js` — `finishRace`, `startLevel`, `toMenu`)
+  - Store and clear the results timer when starting a level or returning to the menu so the Results modal never pops up mid-countdown.
+  - Verified in the integrated browser: restart, level change, and menu cancel stale results; uninterrupted finishes still open results after exactly 2200 ms.
 - [ ] **Populate night sky stars & moon** (`src/main.js` — `skyTex`)
   - Fill in the empty `if (p.night) { ... }` loop with twinkling stars and a crescent moon for *Docking Gauntlet*.
 - [ ] **Fix ghost angle wraparound & reset teleporting** (`src/main.js` — `updateVisuals`)
