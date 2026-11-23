@@ -465,6 +465,7 @@ function placeRig(rearI){ const p=poseAt(rearI); S.x=p.x; S.z=p.z; S.th=p.th; S.
 
 function startLevel(li){
   clearTimeout(resultsTimer); resultsTimer=null;
+  clearInputs();
   SFX.init();
   S.level=li; store.set('lastLevel',li);
   buildLevel(li);
@@ -481,7 +482,8 @@ function startLevel(li){
   snapCamera();
   const ghostOn = S.best && S.best.ghost && S.best.ghost.length>4;
   ghostRig.tractor.visible = ghostRig.trailer.visible = !!ghostOn;
-  showHint(li===0 && S.mode==='rookie' ? 'Hold S / ↓ to reverse. Steer A/D — the trailer follows your keys. Follow the cyan guide!' :
+  showHint(isTouch && li===0 ? 'Hold REV to reverse. Use the arrows to steer, STOP to brake, and RESET for a tow (+3s).' :
+    li===0 && S.mode==='rookie' ? 'Hold S / ↓ to reverse. Steer A/D — the trailer follows your keys. Follow the cyan guide!' :
     li===0 ? 'PRO: raw steering. Counter-steer early or jackknife!' : (ghostOn ? 'Racing your ghost 👻 — beat your best!' : LEVELS[li].sub), 4.5);
 }
 
@@ -597,7 +599,7 @@ function medalFor(li, mode, t){ const g=targetsFor(li,mode); if(t<=g.gold) retur
 
 const quips = ['The trailer has accepted you as its leader.','Your chiropractor sends regards.','Forward gear? Never heard of her.','Mirrors: polished. Ego: inflated.','That was beautiful. In reverse.'];
 function showResults(total, prev, newRec, med){
-  S.state='results'; SFX.silence();
+  S.state='results'; clearInputs(); SFX.silence();
   $('rMedal').textContent=med.icon; $('rTitle').textContent = med.rank? med.name+' MEDAL!' : 'DELIVERED… ON TIME-ISH';
   $('rTime').textContent=fmt(total);
   $('rRecord').textContent = newRec ? (prev?`NEW RECORD! −${(prev.t-total).toFixed(2)}s`:'FIRST DELIVERY RECORDED!') : `BEST ${fmt(prev.t)}  (+${(total-prev.t).toFixed(2)}s)`;
@@ -768,11 +770,17 @@ function updHUD(dt){
   const done=clamp((S.rearIdx-T.startIdx)/(T.finishIdx-T.startIdx),0,1); $('progFill').style.width=(done*100)+'%';
   $('cpTxt').textContent = `CHECKPOINT ${Math.min(S.nextCp,T.cps.length-1)}/${T.cps.length-1} · ${S.mode.toUpperCase()}`;
   $('camName').textContent=CAMS[S.cam];
+  if(isTouch){
+    $('touchCam').textContent=CAMS[S.cam].replace(' CAM','');
+    $('tReset').disabled=S.state!=='race';
+    $('tPause').disabled=!['race','countdown','jack'].includes(S.state);
+  }
   drawMinimap();
 }
 
 // ================= INPUT =================
-const isTouch = matchMedia('(pointer:coarse)').matches;
+const isTouch = matchMedia('(any-pointer:coarse)').matches || navigator.maxTouchPoints>0;
+document.body.classList.toggle('touch-ui',isTouch);
 const KEYMAP = { ArrowDown:'rev', KeyS:'rev', ArrowUp:'brake', KeyW:'brake', Space:'brake', ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right', ShiftLeft:'nitro', ShiftRight:'nitro', KeyN:'nitro' };
 addEventListener('keydown', e=>{
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
@@ -781,8 +789,8 @@ addEventListener('keydown', e=>{
   if(S.state==='menu'){ if(e.code==='Enter') startLevel(S.level);
     if(e.code==='ArrowRight'||e.code==='KeyD'){ S.level=(S.level+1)%LEVELS.length; renderMenu(); previewLevel(); } if(e.code==='ArrowLeft'||e.code==='KeyA'){ S.level=(S.level+LEVELS.length-1)%LEVELS.length; renderMenu(); previewLevel(); } return; }
   if(S.state==='results'){ if(e.code==='KeyR') startLevel(S.level); if(e.code==='Enter'||e.code==='KeyN'){ startLevel(S.level<LEVELS.length-1?S.level+1:S.level); } if(e.code==='Escape') toMenu(); return; }
-  if(e.code==='KeyH'){ SFX.horn(); hornScare(); }
-  if(e.code==='KeyC'){ S.cam=(S.cam+1)%3; popup(CAMS[S.cam],'blue'); }
+  if(e.code==='KeyH'){ playHorn(); }
+  if(e.code==='KeyC'){ cycleCamera(); }
   if(e.code==='KeyG'){ S.guide=!S.guide; popup('GUIDE '+(S.guide?'ON':'OFF'),'blue'); }
   if(e.code==='KeyM'){ const m=SFX.toggleMute(); popup(m?'MUTED':'SOUND ON','blue'); }
   if(e.code==='KeyR'){ startLevel(S.level); }
@@ -790,20 +798,32 @@ addEventListener('keydown', e=>{
   if(e.code==='Escape'||e.code==='KeyP'){ togglePause(); }
 });
 addEventListener('keyup', e=>{ const k=KEYMAP[e.code]; if(k) keys[k]=false; });
-addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
+function clearInputs(){ for(const k in keys) keys[k]=false; document.querySelectorAll('#touch .on').forEach(el=>el.classList.remove('on')); }
+addEventListener('blur',clearInputs);
+function playHorn(){ SFX.init(); SFX.horn(); hornScare(); }
+function cycleCamera(){ S.cam=(S.cam+1)%3; popup(CAMS[S.cam],'blue'); }
 function hornScare(){ // horn makes fans go wild and nearby cones wobble
   fans.forEach(f=>{ const p=T.pts[f.i]; if(Math.hypot(p.x-S.x,p.z-S.z)<45) f.jump=2.2; });
   popup('HOOONK! 📯','info');
 }
-function bindTouch(id,k){ const el=$(id); const on=e=>{ e.preventDefault(); SFX.init(); if(k==='brake' && !keys.brake) keys.brakeTap=true; keys[k]=true; el.classList.add('on'); }; const off=e=>{ e.preventDefault(); keys[k]=false; el.classList.remove('on'); };
-  el.addEventListener('pointerdown',on); el.addEventListener('pointerup',off); el.addEventListener('pointercancel',off); el.addEventListener('pointerleave',off); }
+function bindTouch(id,k){ const el=$(id); let pointer=null;
+  const on=e=>{
+    if(pointer!==null || (e.pointerType==='mouse' && e.button!==0)) return;
+    e.preventDefault(); pointer=e.pointerId; el.setPointerCapture(pointer); SFX.init();
+    if(k==='brake' && !keys.brake) keys.brakeTap=true; keys[k]=true; el.classList.add('on');
+  };
+  const off=e=>{ if(e.pointerId!==pointer) return; pointer=null; keys[k]=false; el.classList.remove('on'); };
+  el.addEventListener('pointerdown',on); el.addEventListener('pointerup',off); el.addEventListener('pointercancel',off); el.addEventListener('lostpointercapture',off); }
 bindTouch('tL','left'); bindTouch('tR','right'); bindTouch('tB','brake'); bindTouch('tG','rev'); bindTouch('tN','nitro');
+$('tPause').onclick=togglePause; $('tRestart').onclick=()=>startLevel(S.level);
+$('tReset').onclick=()=>{ if(S.state==='race') resetToCheckpoint(true); };
+$('tHorn').onclick=playHorn; $('tCamera').onclick=cycleCamera;
 
 function togglePause(){
-  if(S.state==='paused'){ S.state=S.prevState; $('pauseS').classList.add('hide'); }
-  else if(['race','countdown','jack'].includes(S.state)){ S.prevState=S.state; S.state='paused'; SFX.silence(); $('pauseS').classList.remove('hide'); }
+  if(S.state==='paused'){ S.state=S.prevState; $('pauseS').classList.add('hide'); if(isTouch) $('touch').style.display='block'; }
+  else if(['race','countdown','jack'].includes(S.state)){ S.prevState=S.state; S.state='paused'; clearInputs(); SFX.silence(); $('touch').style.display='none'; $('pauseS').classList.remove('hide'); }
 }
-function toMenu(){ clearTimeout(resultsTimer); resultsTimer=null; S.state='menu'; SFX.silence(); $('results').classList.add('hide'); $('pauseS').classList.add('hide'); $('hud').style.display='none'; $('minimap').style.display='none'; $('touch').style.display='none'; renderMenu(); previewLevel(); }
+function toMenu(){ clearTimeout(resultsTimer); resultsTimer=null; S.state='menu'; clearInputs(); SFX.silence(); $('menu').classList.remove('hide'); $('results').classList.add('hide'); $('pauseS').classList.add('hide'); $('hud').style.display='none'; $('minimap').style.display='none'; $('touch').style.display='none'; renderMenu(); previewLevel(); }
 $('pResume').onclick=togglePause; $('pRetry').onclick=()=>startLevel(S.level); $('pMenu').onclick=toMenu;
 $('rRetry').onclick=()=>startLevel(S.level); $('rMenu').onclick=toMenu; $('rNext').onclick=()=>startLevel(Math.min(LEVELS.length-1,S.level+1));
 $('goBtn').onclick=()=>startLevel(S.level);

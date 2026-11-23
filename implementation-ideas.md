@@ -18,9 +18,11 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 - [x] **Add back-wall collision inside Dock 7** (`src/main.js` — `physics`, `buildLevel`)
   - Constrain longitudinal travel at the rendered Dock 7 end barrier's inner face, just past `P[N-1]`. Check the full rig footprint and stop inward motion instead of allowing the old rounded end-cap collision to let the rig coast several metres past the barrier.
   - Verified in the integrated browser: 22 m/s finishes on all five courses, straight/angled corner contacts, unchanged starting positions, and no post-finish penalties or barrier penetration.
-- [ ] **Improve mobile / touch UX** (`index.html`, `css/style.css`, `src/main.js`)
-  - Add compact touch buttons for **Pause**, **Restart**, **Checkpoint Reset**, **Air Horn**, and **Camera Toggle**.
-  - Hide the desktop keyboard legend (`#br`) on coarse-pointer / touch screens so it doesn't overlap touch controls.
+- [x] **Improve mobile / touch UX** (`index.html`, `css/style.css`, `src/main.js`)
+  - Added compact, labelled buttons for **Pause**, **Restart**, **Checkpoint Reset (+3s)**, **Air Horn**, and **Camera Toggle**, with shared keyboard/touch actions and state-aware disabling.
+  - Hide the desktop keyboard legend (`#br`) on coarse-pointer / touch screens. Responsive control groups, HUD spacing, safe-area offsets, and scrollable menus/results keep controls reachable without overlap.
+  - Added pointer capture/cancellation and input clearing on pause/restart/menu/results/blur; restored the menu overlay when returning from a race.
+  - Verified in the integrated browser: 10 non-overlapping targets of at least 44 px at 320/390/844/1280 px widths; all actions, three simultaneous touch inputs, drag/cancel handling, menu/results scrolling, and desktop keyboard controls.
 - [ ] **Clean up minor resource leaks** (`src/main.js` — `buildLevel`)
   - Dispose the previous `scene.background` texture before assigning a new one.
   - Replace the `window._dt` global used for the Dock 7 sign with a local variable.

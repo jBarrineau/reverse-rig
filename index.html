@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Reverse Rig</title>
 <meta name="description" content="A Three.js semi-truck racer where you can only drive in reverse.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚛</text></svg>">
@@ -39,11 +39,24 @@
 <div id="hint"></div>
 
 <div id="touch">
-  <div class="tb" id="tL" style="left:18px">◀</div>
-  <div class="tb" id="tR" style="left:108px">▶</div>
-  <div class="tb" id="tN" style="right:198px;width:64px;height:64px;font-size:13px">⚡</div>
-  <div class="tb" id="tB" style="right:108px">STOP</div>
-  <div class="tb" id="tG" style="right:18px;background:#ff572277">REV</div>
+  <div class="touch-actions" role="group" aria-label="Race actions">
+    <button type="button" class="ta" id="tPause">PAUSE</button>
+    <button type="button" class="ta" id="tRestart">RESTART</button>
+    <button type="button" class="ta" id="tReset" aria-label="Reset to checkpoint (+3 seconds)" disabled>RESET<small>+3s</small></button>
+    <button type="button" class="ta" id="tHorn" aria-label="Air horn">HORN</button>
+    <button type="button" class="ta" id="tCamera" aria-label="Change camera">CAMERA<small id="touchCam">CHASE</small></button>
+  </div>
+  <div class="touch-drive" role="group" aria-label="Driving controls">
+    <div class="touch-steer">
+      <button type="button" class="tb" id="tL" aria-label="Steer left">◀</button>
+      <button type="button" class="tb" id="tR" aria-label="Steer right">▶</button>
+    </div>
+    <div class="touch-pedals">
+      <button type="button" class="tb" id="tN" aria-label="Reverse nitro">⚡</button>
+      <button type="button" class="tb" id="tB" aria-label="Brake">STOP</button>
+      <button type="button" class="tb" id="tG" aria-label="Reverse">REV</button>
+    </div>
+  </div>
 </div>
 
 <div id="menu" class="screen">

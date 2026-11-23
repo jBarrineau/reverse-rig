@@ -80,4 +80,6 @@ All paths are relative, so it works under a `/<repo>/` subpath without changes.
 | T | Back to last checkpoint (+3s) |
 | R | Restart · P / Esc pause · M mute |
 
-On phones, touch buttons appear. Best times and ghost runs are saved in `localStorage`.
+On touch/coarse-pointer devices, hold **REV**, **STOP**, the steering arrows, and **Nitro** to drive. A compact toolbar provides **Pause**, **Restart**, **Checkpoint Reset (+3s)**, **Air Horn**, and **Camera** controls. The HUD adapts to portrait/landscape layouts and hides the desktop keyboard legend. Held controls are released when pausing, restarting, leaving a race, or losing focus.
+
+Best times and ghost runs are saved in `localStorage`.
