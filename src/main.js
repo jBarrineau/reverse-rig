@@ -3,6 +3,7 @@ import * as THREE from 'three';
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => v<a?a:v>b?b:v;
 const lerp = (a,b,t) => a+(b-a)*t;
+const lerpAngle = (a,b,t) => a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
 const store = {
   get(k,d){ try{ const v=localStorage.getItem('revrig_'+k); return v?JSON.parse(v):d; }catch(e){ return d; } },
   set(k,v){ try{ localStorage.setItem('revrig_'+k, JSON.stringify(v)); }catch(e){} }
@@ -442,7 +443,7 @@ const S = {
   state:'menu', level: store.get('lastLevel',0), mode: store.get('mode','rookie'), paint: store.get('paint',0), cam:0, guide:true,
   x:0,z:0,th:0,ph:0,dl:0,v:0, nitro:.5, time:0, pen:0, bonus:0, cdown:0,
   conesHit:0, walls:0, jacks:0, resets:0, cansGot:0, perfect:false,
-  hitchIdx:0, rearIdx:0, nextCp:0, splits:[], ghost:[], ghostT:0, best:null,
+  hitchIdx:0, rearIdx:0, nextCp:0, splits:[], ghost:[], ghostResets:[], ghostT:0, best:null,
   wasHit:false, lastImpact:-9, shake:0, nopeT:0, finishT:0, wheelDist:0, steerAxis:0, jackT:0, totalAtFinish:0,
 };
 let resultsTimer=null;
@@ -465,7 +466,7 @@ function startLevel(li){
   S.level=li; store.set('lastLevel',li);
   buildLevel(li);
   S.time=0; S.pen=0; S.bonus=0; S.conesHit=0; S.walls=0; S.jacks=0; S.resets=0; S.cansGot=0; S.perfect=false; S.nitro=.5;
-  S.nextCp=0; S.splits=[]; S.ghost=[]; S.ghostT=0; S.wasHit=false; S.shake=0; S.finishT=0; S.wheelDist=0; S.steerAxis=0;
+  S.nextCp=0; S.splits=[]; S.ghost=[]; S.ghostResets=[]; S.ghostT=0; S.wasHit=false; S.shake=0; S.finishT=0; S.wheelDist=0; S.steerAxis=0;
   placeRig(T.startIdx);
   S.state='countdown'; S.cdown=3; S.lastCount=99;
   $('menu').classList.add('hide'); $('results').classList.add('hide'); $('pauseS').classList.add('hide');
@@ -557,6 +558,8 @@ function jackknife(){
 }
 function resetToCheckpoint(manual){
   const ci = S.nextCp>0 ? T.cps[S.nextCp-1] : T.startIdx;
+  const nextSample=S.ghost.length/4;
+  if(nextSample>0 && S.ghostResets[S.ghostResets.length-1]!==nextSample) S.ghostResets.push(nextSample);
   placeRig(ci); S.state='race'; S.wasHit=false;
   if(manual){ S.resets++; S.pen+=3; popup('TOW TRUCK! +3.0s','bad'); }
   for(let k=0;k<20;k++) emit(S.x+(Math.random()-.5)*12, .5, S.z+(Math.random()-.5)*12, { vy:2, c:0xffffff, life:1, s0:1, s1:4, a:.5 });
@@ -571,7 +574,7 @@ function finishRace(){
   confettiBurst(S.rx,S.rz);
   const key=`rec_${S.level}_${S.mode}`; const prev=store.get(key,null);
   const newRec = !prev || total < prev.t;
-  if(newRec){ store.set(key,{ t:total, ghost:S.ghost, splits:S.splits }); }
+  if(newRec){ store.set(key,{ t:total, ghost:S.ghost, ghostResets:S.ghostResets, splits:S.splits }); }
   const med = medalFor(S.level, S.mode, total);
   const mk=`medal_${S.level}`; const pm=store.get(mk,0); if(med.rank>pm) store.set(mk,med.rank);
   resultsTimer=setTimeout(()=>{ resultsTimer=null; showResults(total, prev, newRec, med); }, 2200);
@@ -699,7 +702,11 @@ function updateVisuals(dt){
   // ghost
   if(ghostRig.tractor.visible && S.best && (S.state==='race'||S.state==='finished'||S.state==='jack')){
     const g=S.best.ghost; const n=g.length/4; const f=S.time/.05; const i=Math.min(n-2,Math.floor(f)); const k=clamp(f-i,0,1);
-    if(i>=0){ const a=i*4,b=(i+1)*4; const gx=lerp(g[a],g[b],k), gz=lerp(g[a+1],g[b+1],k), gt=lerp(g[a+2],g[b+2],k), gp=lerp(g[a+3],g[b+3],k);
+    if(i>=0){ const a=i*4,b=(i+1)*4;
+      // Older recordings lack reset markers; a normal 50 ms sample moves about 1 m.
+      const reset=S.best.ghostResets?.includes(i+1) || Math.hypot(g[b]-g[a],g[b+1]-g[a+1])>3;
+      const t=reset && k<1 ? 0 : k;
+      const gx=lerp(g[a],g[b],t), gz=lerp(g[a+1],g[b+1],t), gt=lerpAngle(g[a+2],g[b+2],t), gp=lerpAngle(g[a+3],g[b+3],t);
       ghostRig.tractor.position.set(gx,.02,gz); ghostRig.tractor.rotation.y=-gt; ghostRig.trailer.position.set(gx,.02,gz); ghostRig.trailer.rotation.y=-gp; }
   } else if(S.state==='countdown' && ghostRig.tractor.visible){ ghostRig.tractor.position.set(S.x,.02,S.z); ghostRig.tractor.rotation.y=-S.th; ghostRig.trailer.position.set(S.x,.02,S.z); ghostRig.trailer.rotation.y=-S.ph; }
   // camera

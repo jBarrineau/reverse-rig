@@ -12,8 +12,9 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 - [x] **Populate night sky stars & moon** (`src/main.js` — `skyTex`)
   - Added seeded, twinkling stars and an aspect-correct crescent moon for *Docking Gauntlet*. Night texture uploads are limited to 10 Hz; daytime gradients stay lightweight.
   - Verified in the integrated browser: visible stars/crescent, changing star brightness, upload throttling, and unchanged daytime texture sizing.
-- [ ] **Fix ghost angle wraparound & reset teleporting** (`src/main.js` — `updateVisuals`)
-  - Use shortest-angle interpolation for `gt` and `gp` instead of linear `lerp`, and snap instead of interpolating when consecutive ghost samples jump across a checkpoint reset.
+- [x] **Fix ghost angle wraparound & reset teleporting** (`src/main.js` — `updateVisuals`)
+  - Use shortest-angle interpolation for both headings. Record checkpoint-reset sample markers and hold the previous pose until the reset sample, then snap; older recordings also detect large position jumps.
+  - Verified in the integrated browser: angle wraps in both directions, normal interpolation, nearby/legacy reset jumps, final samples, and manual/automatic reset-marker saving and clearing.
 - [ ] **Add back-wall collision inside Dock 7** (`src/main.js` — `physics`, `buildLevel`)
   - Constrain longitudinal travel past `P[N-1]` so high-speed nitro finishes can't coast through the back wall of the warehouse.
 - [ ] **Improve mobile / touch UX** (`index.html`, `css/style.css`, `src/main.js`)
