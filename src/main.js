@@ -18,6 +18,8 @@ const TR_BACK = 11.0, TR_FRONT = 1.0, TR_W = 2.6;
 const TC_BACK = 1.8, TC_FRONT = 6.6, TC_W = 2.5;
 const MAXSTEER = 0.6;
 const JACK = 1.22;
+const PERFECT_V = 6, PERFECT_G = .14;   // PERFECT DOCK: cross the finish slower than this, with every hitch this straight
+const DOCK_ZONE = 12, DOCK_SENSE = 25;  // painted approach box length; parking-sensor range (m from the finish line)
 // Trailer sets. parts: [front, back] per trailer from its hitch; D: hitch -> axle; L: lead hitch -> B-double fifth wheel.
 // Rookie road-train assist (gs, gmax, k2) was tuned offline to keep both hitch angles below ~0.6 rad.
 const RIGS = {
@@ -60,7 +62,7 @@ const PAINTS = ['#e53935','#ff8f00','#1e88e5','#43a047','#8e24aa','#212121','#f5
 
 // ================= AUDIO =================
 const SFX = (() => {
-  let ctx=null, master, engGain, engF, e1, e2, beepGain, nitroGain, noiseBuf, muted=false;
+  let ctx=null, master, engGain, engF, e1, e2, beepGain, sensGain, nitroGain, noiseBuf, muted=false;
   function init(){
     if(ctx) { if(ctx.state==='suspended') ctx.resume(); return; }
     try{ ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
@@ -74,20 +76,22 @@ const SFX = (() => {
     const bo = ctx.createOscillator(); bo.type='square'; bo.frequency.value=1040; beepGain=ctx.createGain(); beepGain.gain.value=0;
     const bf = ctx.createBiquadFilter(); bf.type='bandpass'; bf.frequency.value=1040; bf.Q.value=2;
     bo.connect(bf); bf.connect(beepGain); beepGain.connect(master); bo.start();
+    const so = ctx.createOscillator(); so.type='sine'; so.frequency.value=2200; sensGain=ctx.createGain(); sensGain.gain.value=0; so.connect(sensGain); sensGain.connect(master); so.start();
     const ns = ctx.createBufferSource(); ns.buffer=noiseBuf; ns.loop=true;
     const nf = ctx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=1200; nf.Q.value=.7;
     nitroGain = ctx.createGain(); nitroGain.gain.value=0; ns.connect(nf); nf.connect(nitroGain); nitroGain.connect(master); ns.start();
   }
-  function engine(speed, throttle, nitro, beepOn){
+  function engine(speed, throttle, nitro, beepOn, sensorOn){
     if(!ctx) return; const t=ctx.currentTime, s=Math.abs(speed);
     const rpm = 34 + s*3.2 + throttle*14 + (nitro?18:0);
     e1.frequency.setTargetAtTime(rpm, t, .08); e2.frequency.setTargetAtTime(rpm/2, t, .08);
     engF.frequency.setTargetAtTime(380 + throttle*600 + s*30 + (nitro?800:0), t, .1);
     engGain.gain.setTargetAtTime(0.07 + throttle*0.07, t, .1);
     beepGain.gain.setTargetAtTime(beepOn?0.05:0, t, .006);
+    sensGain.gain.setTargetAtTime(sensorOn?0.09:0, t, .004);
     nitroGain.gain.setTargetAtTime(nitro?0.12:0, t, .05);
   }
-  function silence(){ if(!ctx) return; const t=ctx.currentTime; engGain.gain.setTargetAtTime(0,t,.1); beepGain.gain.setTargetAtTime(0,t,.01); nitroGain.gain.setTargetAtTime(0,t,.05); }
+  function silence(){ if(!ctx) return; const t=ctx.currentTime; engGain.gain.setTargetAtTime(0,t,.1); beepGain.gain.setTargetAtTime(0,t,.01); sensGain.gain.setTargetAtTime(0,t,.01); nitroGain.gain.setTargetAtTime(0,t,.05); }
   function tone(f, dur, type='square', vol=.15, slide=null, delay=0){
     if(!ctx) return; const t=ctx.currentTime+delay; const o=ctx.createOscillator(), g=ctx.createGain();
     o.type=type; o.frequency.setValueAtTime(f,t); if(slide) o.frequency.exponentialRampToValueAtTime(slide,t+dur);
@@ -419,6 +423,15 @@ function buildLevel(li){
   T.startGate = decal(T.startIdx,'START','#ff6d00','#ff1744');
   gates=[];
   T.cps.forEach((ci,k)=>{ if(k===T.cps.length-1) decal(ci,'FINISH','#00c853','#00b8d4'); else gate(ci,'CHECKPOINT '+(k+1),'#ffab00','#ff6d00'); });
+  // Dock 7 approach box ending at the finish line; update() colours it by whether a PERFECT DOCK is on.
+  { const p=P[T.finishIdx], g=new THREE.Group(); g.position.set(p.x,0,p.z); g.rotation.y=-Math.atan2(p.tz,p.tx);
+    const zm=new THREE.MeshBasicMaterial({ color:0x00e5ff, transparent:true, opacity:.16, depthWrite:false }), em=new THREE.MeshStandardMaterial({ color:0x00e5ff, emissive:0x00e5ff, emissiveIntensity:.95 });
+    const W=TR_W+1.4, cx=-1.5-DOCK_ZONE/2;
+    const fill=new THREE.Mesh(new THREE.PlaneGeometry(DOCK_ZONE,W),zm); fill.rotation.x=-Math.PI/2; fill.position.set(cx,.05,0); g.add(fill);
+    for(const z of [-W/2,W/2]){ const e=new THREE.Mesh(new THREE.BoxGeometry(DOCK_ZONE,.04,.32),em); e.position.set(cx,.06,z); g.add(e); }
+    const stop=new THREE.Mesh(new THREE.BoxGeometry(.35,.04,W+.2),em); stop.position.set(-1.5,.06,0); g.add(stop);
+    for(let k=0;k<3;k++) for(const z of [-1,1]){ const c=new THREE.Mesh(new THREE.BoxGeometry(1.3,.04,.16),em); c.position.set(-4-k*3.2+.3,.06,z*.42); c.rotation.y=z*.6; g.add(c); }
+    levelGroup.add(g); T.dock={ zm, em }; }
   // warehouse / dock at end
   { const p=P[N-1]; const h=Math.atan2(p.tz,p.tx); const g=new THREE.Group(); g.position.set(p.x+p.tx*1.2,0,p.z+p.tz*1.2); g.rotation.y=-h; const hw=p.hw;
     const wallM=new THREE.MeshStandardMaterial({ color:0x90a4ae, roughness:.8 }), roofM=new THREE.MeshStandardMaterial({ color:0x546e7a, roughness:.7 });
@@ -509,7 +522,7 @@ function startLevel(li){
   S.level=li; store.set('lastLevel',li);
   buildLevel(li);
   S.time=0; S.pen=0; S.bonus=0; S.conesHit=0; S.walls=0; S.jacks=0; S.resets=0; S.cansGot=0; S.perfect=false; S.nitro=.5;
-  S.nextCp=0; S.splits=[]; S.ghost=[]; S.ghostResets=[]; S.ghostT=0; S.wasHit=false; S.shake=0; S.finishT=0; S.wheelDist=0; S.steerAxis=0;
+  S.nextCp=0; S.sensPh=0; S.dockHint=false; S.splits=[]; S.ghost=[]; S.ghostResets=[]; S.ghostT=0; S.wasHit=false; S.shake=0; S.finishT=0; S.wheelDist=0; S.steerAxis=0;
   placeRig(T.startIdx);
   S.state='countdown'; S.cdown=3; S.lastCount=99;
   $('menu').classList.add('hide'); $('results').classList.add('hide'); $('pauseS').classList.add('hide');
@@ -638,7 +651,7 @@ function resetToCheckpoint(manual){
 function finishRace(){
   S.state='finished'; S.finishT=0;
   const gam=Math.abs(hitchAngle());
-  if(Math.abs(S.v)<6 && gam<.14){ S.perfect=true; S.bonus+=2; popup('PERFECT DOCK! -2.0s','good'); }
+  if(Math.abs(S.v)<PERFECT_V && gam<PERFECT_G){ S.perfect=true; S.bonus+=2; popup('PERFECT DOCK! -2.0s','good'); }
   const total = S.time + S.pen - S.bonus; S.totalAtFinish = total;
   SFX.finish(); big('DELIVERED!','#69f0ae'); flash('#fff',.4);
   confettiBurst(S.rx,S.rz);
@@ -765,8 +778,17 @@ function update(dt){
   if(S.state==='finished' && S.finishT<3 && Math.random()<.3){ emit(S.rx+(Math.random()-.5)*8, 5+Math.random()*4, S.rz+(Math.random()-.5)*8,{ c:confCols[Math.floor(Math.random()*6)], add:true, life:.8, s0:1.5, s1:.1, a:1, vy:2 }); }
   updParts(dt); updConf(dt); updGuide();
   // audio
-  const beep = Math.abs(S.v)>.3 && S.v<0 && (tt%1)<.5 && S.state!=='finished';
-  SFX.engine(S.v, throttle, S.nitroOn, beep);
+  // Dock 7 approach: box colour (green = perfect dock on, amber = too fast, red = crooked) and parking-sensor pips
+  let near=false, sensor=false;
+  if(T.dock){ const p=T.pts[T.finishIdx], d=(p.x-S.rx)*p.tx+(p.z-S.rz)*p.tz; let col=0x00e5ff, k=.3;
+    near = S.state==='race' && d<DOCK_SENSE && d>-1;
+    if(near){ col = Math.abs(hitchAngle())>=PERFECT_G ? 0xff1744 : Math.abs(S.v)>=PERFECT_V ? 0xffab00 : 0x00e676;
+      if(Math.abs(S.v)>.3){ S.sensPh+=dt/(.08+.5*clamp(d/DOCK_SENSE,0,1)); sensor = d<2 || S.sensPh%1<.45; } k=sensor?1:.55;
+      if(!S.dockHint){ S.dockHint=true; popup('DOCK 7: SLOW & STRAIGHT = PERFECT','blue'); } }
+    else if(S.state==='finished' && S.perfect){ col=0x00e676; k=.6+.4*Math.sin(tt*8); }
+    T.dock.zm.color.set(col); T.dock.zm.opacity=.1+.3*k; T.dock.em.color.set(col); T.dock.em.emissive.set(col); T.dock.em.emissiveIntensity=.3+1.7*k; }
+  const beep = Math.abs(S.v)>.3 && S.v<0 && (tt%1)<.5 && S.state!=='finished' && !near;
+  SFX.engine(S.v, throttle, S.nitroOn, beep, sensor);
   S.shake = Math.max(0, S.shake - dt*2.2);
 }
 

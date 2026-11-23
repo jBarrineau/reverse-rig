@@ -33,8 +33,10 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 
 ## 2. Game Feel & Polish Upgrades
 
-- [ ] **Dock 7 alignment zone & parking-sensor beeps** (`src/main.js` — `buildLevel`, `finishRace`, `SFX`)
+- [x] **Dock 7 alignment zone & parking-sensor beeps** (`src/main.js` — `buildLevel`, `finishRace`, `SFX`)
   - Paint a glowing target box inside Dock 7 and play accelerating ultrasonic parking-sensor beeps (`beep... beep... beep-beep-BEEEEEP`) as the rear bumper approaches so players discover and aim for the `PERFECT DOCK! -2.0s` bonus.
+  - The perfect dock is judged when the rear bumper crosses the finish line, so the painted box (12 m, with chevrons and a stop bar) ends at that line. It glows cyan when idle; within 25 m it turns green (perfect dock on), amber (too fast, ≥ `PERFECT_V`), or red (any hitch ≥ `PERFECT_G`). A 2.2 kHz sensor pips faster as the bumper nears the line and holds a solid tone inside 2 m; the regular reverse beeper mutes meanwhile. A one-time "DOCK 7: SLOW & STRAIGHT = PERFECT" popup appears on approach, and the box pulses green after a perfect dock.
+  - Verified with Python + Playwright: a slow, straight approach turns the box green and earns PERFECT DOCK with both the box van and the road train; a fast one stays amber with no bonus; a crooked one shows red. The pip spacing tightens from about 7 m apart to under 1 m. Daytime render checked, and there are no console errors in Playwright or the integrated browser.
 - [ ] **Trailer deflection on wall scrapes** (`src/main.js` — `physics`)
   - Apply a small angular impulse to `S.ph` when the trailer's rear corners scrape a barrier instead of only translating `S.x, S.z`, making wall contact feel physical and less sticky.
 - [ ] **Expanded Web Audio juice** (`src/main.js` — `SFX`)
