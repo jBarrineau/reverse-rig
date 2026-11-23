@@ -341,6 +341,7 @@ function buildLevel(li){
   const P=T.pts, N=T.N, R=rng(li*977+13);
   // lighting
   const tod = TOD[lv.tod];
+  if(scene.background) scene.background.dispose();
   scene.background = skyTex(tod);
   scene.fog = new THREE.Fog(tod.fog, tod.night?40:90, tod.night?260:520);
   hemi.intensity = tod.hemi; hemi.color.set(tod.night?0x6070c0:0xfff1e0); hemi.groundColor.set(tod.night?0x101020:0x5a4a3a);
@@ -391,7 +392,8 @@ function buildLevel(li){
     const BB=(w,hh,d,m,x,y,z)=>{ const me=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),m); me.position.set(x,y,z); me.castShadow=true; me.receiveShadow=true; g.add(me); };
     const W=hw*2+16; BB(1,13,W,wallM,24,6.5,0); BB(24,13,1,wallM,12,6.5,W/2); BB(24,13,1,wallM,12,6.5,-W/2); BB(25,1,W+1,roofM,12,13.5,0);
     BB(1,13,8,wallM,0,6.5,hw+4.4); BB(1,13,8,wallM,0,6.5,-hw-4.4); BB(1,5,hw*2+1,wallM,0,10.5,0);
-    const sign=new THREE.Mesh(new THREE.BoxGeometry(.3,2.2,hw*1.6),new THREE.MeshStandardMaterial({ map:(window._dt=bannerTex('DOCK 7','#1565c0','#00838f')), emissiveMap:window._dt, emissive:0xffffff, emissiveIntensity:tod.night?.5:.1 }));
+    const dockTex=bannerTex('DOCK 7','#1565c0','#00838f');
+    const sign=new THREE.Mesh(new THREE.BoxGeometry(.3,2.2,hw*1.6),new THREE.MeshStandardMaterial({ map:dockTex, emissiveMap:dockTex, emissive:0xffffff, emissiveIntensity:tod.night?.5:.1 }));
     sign.position.set(-.7,10.4,0); g.add(sign);
     const inner=new THREE.Mesh(new THREE.PlaneGeometry(23,W-1),new THREE.MeshStandardMaterial({ color:0x1b1b1f })); inner.rotation.x=-Math.PI/2; inner.position.set(12,.05,0); g.add(inner);
     const il=new THREE.PointLight(0xffd180, tod.night?300:120, 34); il.position.set(10,10,0); g.add(il);
@@ -422,9 +424,11 @@ function buildLevel(li){
   lv.cones.forEach(([f,lat])=>{ const i=raceIdx(f); const tp=trackPoint(i, lat*P[i].hw); const g=new THREE.Group(); g.add(new THREE.Mesh(coneGeo,coneM)); g.add(new THREE.Mesh(baseGeo,coneM)); g.add(new THREE.Mesh(bandGeo,bandM));
     g.children.forEach(c=>c.castShadow=true); g.position.set(tp.x,0,tp.z); levelGroup.add(g); cones.push({ g, x:tp.x, z:tp.z, y:0, hx:tp.x, hz:tp.z, vx:0,vy:0,vz:0, rx:0,rz:0, wx:0, wz:0, hit:false, i }); });
   // diesel cans
-  cans=[]; const canM0=new THREE.MeshStandardMaterial({ color:0x00e676, emissive:0x00e676, emissiveIntensity:.7, metalness:.4, roughness:.3 });
-  const capM0=new THREE.MeshStandardMaterial({ color:0xffeb3b, emissive:0xffc400, emissiveIntensity:.6 });
-  lv.cans.forEach(([f,lat])=>{ const canM=canM0.clone(), capM=capM0.clone(); const i=raceIdx(f); const tp=trackPoint(i, lat*P[i].hw); const g=new THREE.Group(); const b=new THREE.Mesh(new THREE.BoxGeometry(.8,1.0,.45),canM); b.position.y=1.4; g.add(b);
+  cans=[];
+  lv.cans.forEach(([f,lat])=>{
+    const canM=new THREE.MeshStandardMaterial({ color:0x00e676, emissive:0x00e676, emissiveIntensity:.7, metalness:.4, roughness:.3 });
+    const capM=new THREE.MeshStandardMaterial({ color:0xffeb3b, emissive:0xffc400, emissiveIntensity:.6 });
+    const i=raceIdx(f); const tp=trackPoint(i, lat*P[i].hw); const g=new THREE.Group(); const b=new THREE.Mesh(new THREE.BoxGeometry(.8,1.0,.45),canM); b.position.y=1.4; g.add(b);
     const cap=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,.22,8),capM); cap.position.set(.2,2.0,0); g.add(cap); const hdl=new THREE.Mesh(new THREE.BoxGeometry(.4,.12,.12),capM); hdl.position.set(-.12,1.98,0); g.add(hdl);
     const ring=new THREE.Mesh(new THREE.TorusGeometry(.9,.06,8,32),new THREE.MeshBasicMaterial({ color:0x69f0ae, transparent:true, opacity:.6 })); ring.rotation.x=Math.PI/2; ring.position.y=.1; g.add(ring);
     g.position.set(tp.x,0,tp.z); levelGroup.add(g); cans.push({ g, x:tp.x, z:tp.z, taken:false, t:0, i }); });

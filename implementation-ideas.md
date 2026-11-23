@@ -23,10 +23,11 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
   - Hide the desktop keyboard legend (`#br`) on coarse-pointer / touch screens. Responsive control groups, HUD spacing, safe-area offsets, and scrollable menus/results keep controls reachable without overlap.
   - Added pointer capture/cancellation and input clearing on pause/restart/menu/results/blur; restored the menu overlay when returning from a race.
   - Verified in the integrated browser: 10 non-overlapping targets of at least 44 px at 320/390/844/1280 px widths; all actions, three simultaneous touch inputs, drag/cancel handling, menu/results scrolling, and desktop keyboard controls.
-- [ ] **Clean up minor resource leaks** (`src/main.js` — `buildLevel`)
+- [x] **Clean up minor resource leaks** (`src/main.js` — `buildLevel`)
   - Dispose the previous `scene.background` texture before assigning a new one.
-  - Replace the `window._dt` global used for the Dock 7 sign with a local variable.
-  - Dispose template materials (`canM0`, `capM0`) or share them cleanly instead of leaving un-disposed originals.
+  - Replaced the Dock 7 sign's `window._dt` global with a locally owned texture shared by its color/emissive maps.
+  - Removed unused `canM0` / `capM0` templates; create only the per-pickup materials owned and disposed by the level, preserving independent pickup fades.
+  - Verified in the integrated browser: 10 restarts keep GPU texture counts flat, repeated five-level cycles have identical counts, old backgrounds/pickup materials are disposed, and fading one pickup leaves the others unchanged.
 
 ---
 
