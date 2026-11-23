@@ -783,6 +783,7 @@ function updHUD(dt){
 }
 
 // ================= INPUT =================
+const touchPointers=new Map();
 const isTouch = matchMedia('(any-pointer:coarse)').matches || navigator.maxTouchPoints>0;
 document.body.classList.toggle('touch-ui',isTouch);
 const KEYMAP = { ArrowDown:'rev', KeyS:'rev', ArrowUp:'brake', KeyW:'brake', Space:'brake', ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right', ShiftLeft:'nitro', ShiftRight:'nitro', KeyN:'nitro' };
@@ -802,7 +803,11 @@ addEventListener('keydown', e=>{
   if(e.code==='Escape'||e.code==='KeyP'){ togglePause(); }
 });
 addEventListener('keyup', e=>{ const k=KEYMAP[e.code]; if(k) keys[k]=false; });
-function clearInputs(){ for(const k in keys) keys[k]=false; document.querySelectorAll('#touch .on').forEach(el=>el.classList.remove('on')); }
+function clearInputs(){
+  for(const k in keys) keys[k]=false;
+  for(const [el,pointer] of touchPointers){ if(el.hasPointerCapture(pointer)) el.releasePointerCapture(pointer); el.classList.remove('on'); }
+  touchPointers.clear();
+}
 addEventListener('blur',clearInputs);
 function playHorn(){ SFX.init(); SFX.horn(); hornScare(); }
 function cycleCamera(){ S.cam=(S.cam+1)%3; popup(CAMS[S.cam],'blue'); }
@@ -810,13 +815,13 @@ function hornScare(){ // horn makes fans go wild and nearby cones wobble
   fans.forEach(f=>{ const p=T.pts[f.i]; if(Math.hypot(p.x-S.x,p.z-S.z)<45) f.jump=2.2; });
   popup('HOOONK! 📯','info');
 }
-function bindTouch(id,k){ const el=$(id); let pointer=null;
+function bindTouch(id,k){ const el=$(id);
   const on=e=>{
-    if(pointer!==null || (e.pointerType==='mouse' && e.button!==0)) return;
-    e.preventDefault(); pointer=e.pointerId; el.setPointerCapture(pointer); SFX.init();
+    if(touchPointers.has(el) || (e.pointerType==='mouse' && e.button!==0)) return;
+    e.preventDefault(); touchPointers.set(el,e.pointerId); el.setPointerCapture(e.pointerId); SFX.init();
     if(k==='brake' && !keys.brake) keys.brakeTap=true; keys[k]=true; el.classList.add('on');
   };
-  const off=e=>{ if(e.pointerId!==pointer) return; pointer=null; keys[k]=false; el.classList.remove('on'); };
+  const off=e=>{ if(touchPointers.get(el)!==e.pointerId) return; touchPointers.delete(el); keys[k]=false; el.classList.remove('on'); };
   el.addEventListener('pointerdown',on); el.addEventListener('pointerup',off); el.addEventListener('pointercancel',off); el.addEventListener('lostpointercapture',off); }
 bindTouch('tL','left'); bindTouch('tR','right'); bindTouch('tB','brake'); bindTouch('tG','rev'); bindTouch('tN','nitro');
 $('tPause').onclick=togglePause; $('tRestart').onclick=()=>startLevel(S.level);

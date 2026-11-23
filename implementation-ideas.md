@@ -21,8 +21,8 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 - [x] **Improve mobile / touch UX** (`index.html`, `css/style.css`, `src/main.js`)
   - Added compact, labelled buttons for **Pause**, **Restart**, **Checkpoint Reset (+3s)**, **Air Horn**, and **Camera Toggle**, with shared keyboard/touch actions and state-aware disabling.
   - Hide the desktop keyboard legend (`#br`) on coarse-pointer / touch screens. Responsive control groups, HUD spacing, safe-area offsets, and scrollable menus/results keep controls reachable without overlap.
-  - Added pointer capture/cancellation and input clearing on pause/restart/menu/results/blur; restored the menu overlay when returning from a race.
-  - Verified in the integrated browser: 10 non-overlapping targets of at least 44 px at 320/390/844/1280 px widths; all actions, three simultaneous touch inputs, drag/cancel handling, menu/results scrolling, and desktop keyboard controls.
+  - Added pointer capture/cancellation and clear both held inputs and captured pointers on pause/restart/menu/results/blur; restored the menu overlay when returning from a race.
+  - Verified in the integrated browser: 10 non-overlapping targets of at least 44 px at 320/390/844/1280 px widths; all actions, three simultaneous touch inputs, drag/cancel handling, fresh presses after transitions, menu/results scrolling, and desktop keyboard controls.
 - [x] **Clean up minor resource leaks** (`src/main.js` — `buildLevel`)
   - Dispose the previous `scene.background` texture before assigning a new one.
   - Replaced the Dock 7 sign's `window._dt` global with a locally owned texture shared by its color/emissive maps.
