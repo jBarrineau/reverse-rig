@@ -356,11 +356,14 @@ function buildLevel(li){
   const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); tg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2)); tg.setIndex(idx); tg.computeVertexNormals();
   const track=new THREE.Mesh(tg,new THREE.MeshStandardMaterial({ map:trackTex, roughness:.85, side:THREE.DoubleSide })); track.receiveShadow=true; levelGroup.add(track);
   // barriers
-  const segsB=[]; for(let i=0;i<N-2;i+=2){ for(const sd of [1,-1]){ const a=P[i], b=P[i+2]; const off=sd*(a.hw+.35), offb=sd*(b.hw+.35);
+  const barDepth=.7, capOffset=.4;
+  const segsB=[]; for(let i=0;i<N-2;i+=2){ for(const sd of [1,-1]){ const a=P[i], b=P[i+2]; const off=sd*(a.hw+barDepth/2), offb=sd*(b.hw+barDepth/2);
     const ax=a.x+a.nx*off, az=a.z+a.nz*off, bx=b.x+b.nx*offb, bz=b.z+b.nz*offb; segsB.push([ (ax+bx)/2, (az+bz)/2, Math.atan2(bz-az,bx-ax), Math.hypot(bx-ax,bz-az)*1.04, (i/2)%2 ]); } }
   // end caps
-  for(const [ci,dir] of [[0,-1],[N-1,1]]){ const p=P[ci]; for(let l=-p.hw; l<p.hw; l+=2.9){ const x=p.x+p.nx*(l+1.45)+p.tx*dir*.4, z=p.z+p.nz*(l+1.45)+p.tz*dir*.4; segsB.push([x,z,Math.atan2(p.nz,p.nx),2.9,Math.round(l)%2?1:0]); } }
-  const barGeo=new THREE.BoxGeometry(1,1.05,.7); barGeo.translate(0,.525,0);
+  for(const [ci,dir] of [[0,-1],[N-1,1]]){ const p=P[ci]; for(let l=-p.hw; l<p.hw; l+=2.9){ const x=p.x+p.nx*(l+1.45)+p.tx*dir*capOffset, z=p.z+p.nz*(l+1.45)+p.tz*dir*capOffset; segsB.push([x,z,Math.atan2(p.nz,p.nx),2.9,Math.round(l)%2?1:0]); } }
+  const end=P[N-1];
+  T.dockWall={ x:end.x+end.tx*(capOffset-barDepth/2), z:end.z+end.tz*(capOffset-barDepth/2), tx:end.tx, tz:end.tz };
+  const barGeo=new THREE.BoxGeometry(1,1.05,barDepth); barGeo.translate(0,.525,0);
   const bar=new THREE.InstancedMesh(barGeo,new THREE.MeshStandardMaterial({ roughness:.6 }),segsB.length);
   const cR=new THREE.Color(0xe53935), cW=new THREE.Color(0xf5f5f5);
   segsB.forEach((s,i)=>{ dummy.position.set(s[0],0,s[1]); dummy.rotation.set(0,-s[2],0); dummy.scale.set(s[3],1,1); dummy.updateMatrix(); bar.setMatrixAt(i,dummy.matrix); bar.setColorAt(i,s[4]?cR:cW); });
@@ -535,6 +538,13 @@ function physics(h){
   let hit=false, hx=0, hz=0;
   const pts=rigPoints();
   for(const p of pts){ const q=nearest(p[0],p[1],S.hitchIdx); const lim=q.hw-.12; if(q.d>lim){ const pen=q.d-lim; const nx=(p[0]-q.qx)/q.d, nz=(p[1]-q.qz)/q.d; S.x-=nx*pen; S.z-=nz*pen; hit=true; hx=p[0]; hz=p[1]; } }
+  const wall=T.dockWall; let endPen=0;
+  for(const p of rigPoints()){
+    const pen=(p[0]-wall.x)*wall.tx+(p[1]-wall.z)*wall.tz;
+    // Earlier hairpins can cross the same plane; only bound the terminal segment.
+    if(pen>endPen && nearest(p[0],p[1],S.hitchIdx).i===T.N-1){ endPen=pen; hx=p[0]; hz=p[1]; }
+  }
+  if(endPen>0){ S.x-=wall.tx*endPen; S.z-=wall.tz*endPen; hit=true; }
   const now=S.time;
   if(hit){
     if(!S.wasHit && Math.abs(S.v)>4 && now-S.lastImpact>.5 && racing){
@@ -542,6 +552,7 @@ function physics(h){
       for(let k=0;k<14;k++) emit(hx,1+Math.random(),hz,{ vx:(Math.random()-.5)*10, vy:3+Math.random()*6, vz:(Math.random()-.5)*10, c:0xffb300, add:true, life:.5, s0:.35, s1:.1, a:1, grav:18 });
     } else { S.v*=(1-2.2*h); if(Math.random()<.25 && Math.abs(S.v)>1){ emit(hx,.8,hz,{ vx:(Math.random()-.5)*5, vy:2+Math.random()*3, vz:(Math.random()-.5)*5, c:0xffd54f, add:true, life:.35, s0:.25, s1:.05, a:1, grav:14 }); if(Math.random()<.3) SFX.scrape(); } }
   }
+  if(endPen>0 && S.v*(Math.cos(S.th)*wall.tx+Math.sin(S.th)*wall.tz)>0) S.v=0;
   S.wasHit=hit;
   // track progress
   S.hitchIdx = nearest(S.x,S.z,S.hitchIdx,30).i;

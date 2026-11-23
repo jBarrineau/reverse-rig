@@ -15,8 +15,9 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 - [x] **Fix ghost angle wraparound & reset teleporting** (`src/main.js` — `updateVisuals`)
   - Use shortest-angle interpolation for both headings. Record checkpoint-reset sample markers and hold the previous pose until the reset sample, then snap; older recordings also detect large position jumps.
   - Verified in the integrated browser: angle wraps in both directions, normal interpolation, nearby/legacy reset jumps, final samples, and manual/automatic reset-marker saving and clearing.
-- [ ] **Add back-wall collision inside Dock 7** (`src/main.js` — `physics`, `buildLevel`)
-  - Constrain longitudinal travel past `P[N-1]` so high-speed nitro finishes can't coast through the back wall of the warehouse.
+- [x] **Add back-wall collision inside Dock 7** (`src/main.js` — `physics`, `buildLevel`)
+  - Constrain longitudinal travel at the rendered Dock 7 end barrier's inner face, just past `P[N-1]`. Check the full rig footprint and stop inward motion instead of allowing the old rounded end-cap collision to let the rig coast several metres past the barrier.
+  - Verified in the integrated browser: 22 m/s finishes on all five courses, straight/angled corner contacts, unchanged starting positions, and no post-finish penalties or barrier penetration.
 - [ ] **Improve mobile / touch UX** (`index.html`, `css/style.css`, `src/main.js`)
   - Add compact touch buttons for **Pause**, **Restart**, **Checkpoint Reset**, **Air Horn**, and **Camera Toggle**.
   - Hide the desktop keyboard legend (`#br`) on coarse-pointer / touch screens so it doesn't overlap touch controls.
