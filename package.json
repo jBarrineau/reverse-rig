@@ -1,0 +1,11 @@
+{
+  "name": "reverse-rig",
+  "version": "1.0.0",
+  "description": "A Three.js semi-truck racer where you can only drive in reverse.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes serve -l 3000 .",
+    "start": "npm run dev"
+  }
+}

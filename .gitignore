@@ -1,0 +1,21 @@
+# Dependencies (if npm/npx is ever used locally)
+node_modules/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs & temp files
+*.log
+npm-debug.log*
+*.tmp
+.env
+.env.local
+

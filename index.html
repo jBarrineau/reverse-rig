@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Reverse Rig</title>
+<meta name="description" content="A Three.js semi-truck racer where you can only drive in reverse.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚛</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Bungee+Shade&family=Rubik:wght@400;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="vignette"></div><div id="speedlines"></div><div id="flash"></div>
+
+<div id="hud" class="hud">
+  <div id="tl" class="hud"><div id="lvlName">LEVEL</div><div id="cpTxt">CHECKPOINT 0/0</div><div id="prog"><div id="progFill"></div></div></div>
+  <div id="tc" class="hud"><div id="timer">0:00.00</div><div id="pen"></div><div id="delta"></div></div>
+  <div id="bl" class="hud">
+    <div><span id="gear">R</span><span id="speedo">0<small>KM/H</small></span></div>
+    <div id="nitroWrap"><label>⚡ REVERSE NITRO</label><div id="nitroBar"><div id="nitroFill"></div></div></div>
+  </div>
+  <div id="bc" class="hud">
+    <svg width="220" height="122" viewBox="0 0 220 122">
+      <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#0008" stroke-width="18" stroke-linecap="round"/>
+      <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="url(#hg)" stroke-width="12" stroke-linecap="round"/>
+      <defs><linearGradient id="hg" x1="0" x2="1"><stop offset="0" stop-color="#ff1744"/><stop offset=".22" stop-color="#ffc400"/><stop offset=".4" stop-color="#00e676"/><stop offset=".6" stop-color="#00e676"/><stop offset=".78" stop-color="#ffc400"/><stop offset="1" stop-color="#ff1744"/></linearGradient></defs>
+      <g id="needle" transform="rotate(0 110 110)"><line x1="110" y1="110" x2="110" y2="30" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="110" cy="110" r="9" fill="#fff"/></g>
+    </svg>
+    <div id="hitchLbl">HITCH ANGLE</div>
+  </div>
+  <div id="br" class="hud"><div id="camName">CHASE CAM</div>
+    <b>S/↓</b> reverse · <b>W/↑</b> brake · <b>A D</b> steer<br><b>SHIFT</b> nitro · <b>H</b> horn · <b>C</b> camera · <b>G</b> guide<br><b>T</b> checkpoint reset · <b>R</b> restart · <b>P</b> pause</div>
+</div>
+<canvas id="minimap" width="360" height="360"></canvas>
+<div id="big"></div>
+<div id="popups"></div>
+<div id="hint"></div>
+
+<div id="touch">
+  <div class="tb" id="tL" style="left:18px">◀</div>
+  <div class="tb" id="tR" style="left:108px">▶</div>
+  <div class="tb" id="tN" style="right:198px;width:64px;height:64px;font-size:13px">⚡</div>
+  <div class="tb" id="tB" style="right:108px">STOP</div>
+  <div class="tb" id="tG" style="right:18px;background:#ff572277">REV</div>
+</div>
+
+<div id="menu" class="screen">
+  <h1 class="title">REVERSE<span>RIG</span></h1>
+  <div class="tag">18 wheels. 0 forward gears. <em>Backwards is the only way forward.</em></div>
+  <div id="levels"></div>
+  <div class="row">
+    <span class="lbl">MODE</span>
+    <div class="seg" id="modeSeg"><button data-m="rookie" class="on">ROOKIE</button><button data-m="pro">PRO</button></div>
+    <span class="lbl" style="margin-left:10px">PAINT</span>
+    <div id="paints" style="display:flex;gap:8px"></div>
+  </div>
+  <div class="modeDesc" id="modeDesc"></div>
+  <div style="margin-top:8px"><button class="btn" id="goBtn">START ENGINE ▶</button></div>
+  <div class="keys">
+    <div><b>S</b>/<b>↓</b> Reverse</div><div><b>W</b>/<b>↑</b> Brake</div><div><b>A</b><b>D</b> Steer</div><div><b>⇧</b> Nitro</div>
+    <div><b>H</b> Air horn</div><div><b>C</b> Camera</div><div><b>T</b> Checkpoint</div><div><b>G</b> Path guide</div>
+  </div>
+</div>
+
+<div id="results" class="screen hide">
+  <div class="card">
+    <div id="rMedal">🥇</div>
+    <div id="rTitle">DELIVERED!</div>
+    <div id="rTime">0:00.00</div>
+    <div id="rRecord"></div>
+    <div class="stats" id="rStats"></div>
+    <div class="targets" id="rTargets"></div>
+    <div class="btns"><button class="btn alt" id="rMenu">MENU</button><button class="btn alt" id="rRetry">RETRY (R)</button><button class="btn" id="rNext">NEXT ▶</button></div>
+  </div>
+</div>
+
+<div id="pauseS" class="screen hide">
+  <div class="card">
+    <h1 class="title" style="font-size:64px">PAUSED</h1>
+    <div class="tag">The trailer is judging you silently.</div>
+    <div class="btns"><button class="btn" id="pResume">RESUME</button><button class="btn alt" id="pRetry">RESTART</button><button class="btn alt" id="pMenu">MENU</button></div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
