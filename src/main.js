@@ -140,8 +140,34 @@ function canvasTex(w,h,draw,repeat){
   if(repeat){ t.wrapS=t.wrapT=THREE.RepeatWrapping; }
   return t;
 }
-function skyTex(p){ return canvasTex(4,512,(g,w,h)=>{ const gr=g.createLinearGradient(0,0,0,h); gr.addColorStop(0,p.top); gr.addColorStop(.55,p.mid); gr.addColorStop(1,p.bot); g.fillStyle=gr; g.fillRect(0,0,w,h);
-  if(p.night){ for(let i=0;i<0;i++); } }); }
+function skyTex(p){
+  const draw=(g,w,h,time=0)=>{
+    const gr=g.createLinearGradient(0,0,0,h); gr.addColorStop(0,p.top); gr.addColorStop(.55,p.mid); gr.addColorStop(1,p.bot); g.fillStyle=gr; g.fillRect(0,0,w,h);
+    if(!p.night) return;
+    const R=rng(73), sx=w/h/camera.aspect;
+    for(let i=0;i<140;i++){
+      const x=R()*w, y=R()*h*.65, r=.6+R()*1.25, phase=R()*Math.PI*2, rate=.6+R()*1.4;
+      if(Math.hypot((x-w*.78)/sx,y-h*.18)<34) continue;
+      g.globalAlpha=.35+.65*(.5+.5*Math.sin(time*rate+phase)); g.fillStyle='#fff4d6';
+      g.beginPath(); g.ellipse(x,y,r*sx,r,0,0,Math.PI*2); g.fill();
+      if(i%14===0){ g.fillRect(x-4*sx,y-.35,8*sx,.7); g.fillRect(x-.35*sx,y-4,.7*sx,8); }
+    }
+    g.globalAlpha=1;
+    g.save(); g.translate(w*.78,h*.18); g.scale(sx,1); g.rotate(-.25); g.fillStyle='#ffe7ab';
+    g.beginPath(); g.arc(0,0,28,Math.PI/3,5*Math.PI/3); g.arc(28,0,28,4*Math.PI/3,2*Math.PI/3,true); g.closePath(); g.fill(); g.restore();
+  };
+  const tex=canvasTex(p.night?1024:4,512,draw);
+  if(p.night){
+    let elapsed=0, lastDraw=0;
+    tex.userData.twinkle=dt=>{
+      elapsed+=dt;
+      if(elapsed-lastDraw<.1) return;
+      lastDraw=elapsed;
+      const c=tex.image; draw(c.getContext('2d'),c.width,c.height,elapsed); tex.needsUpdate=true;
+    };
+  }
+  return tex;
+}
 function speckle(g,w,h,base,n,cols){ g.fillStyle=base; g.fillRect(0,0,w,h); for(let i=0;i<n;i++){ g.fillStyle=cols[i%cols.length]; const s=Math.random()*2.2+.5; g.fillRect(Math.random()*w,Math.random()*h,s,s); } }
 const trackTex = canvasTex(256,256,(g,w,h)=>{
   speckle(g,w,h,'#45484e',5000,['#3a3c41','#55585e','#4d4f55','#606369']);
@@ -663,6 +689,7 @@ function update(dt){
 }
 
 function updateVisuals(dt){
+  if(T && T.night) scene.background.userData.twinkle(dt);
   rig.tractor.position.set(S.x,0,S.z); rig.tractor.rotation.y=-S.th;
   rig.trailer.position.set(S.x,0,S.z); rig.trailer.rotation.y=-S.ph;
   rig.steerPivots.forEach(p=>p.rotation.y=S.dl);

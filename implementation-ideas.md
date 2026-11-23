@@ -9,8 +9,9 @@ A curated backlog of bug fixes, game-feel polish, and creative features for **Re
 - [x] **Cancel results timeout on restart/menu** (`src/main.js` — `finishRace`, `startLevel`, `toMenu`)
   - Store and clear the results timer when starting a level or returning to the menu so the Results modal never pops up mid-countdown.
   - Verified in the integrated browser: restart, level change, and menu cancel stale results; uninterrupted finishes still open results after exactly 2200 ms.
-- [ ] **Populate night sky stars & moon** (`src/main.js` — `skyTex`)
-  - Fill in the empty `if (p.night) { ... }` loop with twinkling stars and a crescent moon for *Docking Gauntlet*.
+- [x] **Populate night sky stars & moon** (`src/main.js` — `skyTex`)
+  - Added seeded, twinkling stars and an aspect-correct crescent moon for *Docking Gauntlet*. Night texture uploads are limited to 10 Hz; daytime gradients stay lightweight.
+  - Verified in the integrated browser: visible stars/crescent, changing star brightness, upload throttling, and unchanged daytime texture sizing.
 - [ ] **Fix ghost angle wraparound & reset teleporting** (`src/main.js` — `updateVisuals`)
   - Use shortest-angle interpolation for `gt` and `gp` instead of linear `lerp`, and snap instead of interpolating when consecutive ghost samples jump across a checkpoint reset.
 - [ ] **Add back-wall collision inside Dock 7** (`src/main.js` — `physics`, `buildLevel`)
